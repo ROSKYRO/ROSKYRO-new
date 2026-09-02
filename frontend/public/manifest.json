@@ -1,0 +1,12 @@
+{
+  "name": "ROSKYRO",
+  "short_name": "ROSKYRO",
+  "description": "Verified care partners, on call.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FBF9F7",
+  "theme_color": "#1A1523",
+  "icons": [
+    { "src": "/brand/logo.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
