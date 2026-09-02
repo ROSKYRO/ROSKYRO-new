@@ -8,9 +8,9 @@
 
 export const BRAND = "ROSKYRO";
 
-export const WHATSAPP_BOOKING_NUMBER = import.meta.env.VITE_WHATSAPP_BOOKING_NUMBER || "910000000000";
-export const WHATSAPP_SUPPORT_NUMBER = import.meta.env.VITE_WHATSAPP_SUPPORT_NUMBER || "910000000001";
-export const SUPPORT_PHONE_DISPLAY = import.meta.env.VITE_SUPPORT_PHONE_DISPLAY || "+91 00000 00001";
+export const WHATSAPP_BOOKING_NUMBER = import.meta.env.VITE_WHATSAPP_BOOKING_NUMBER || "919244166752";
+export const WHATSAPP_SUPPORT_NUMBER = import.meta.env.VITE_WHATSAPP_SUPPORT_NUMBER || "919244166752";
+export const SUPPORT_PHONE_DISPLAY = import.meta.env.VITE_SUPPORT_PHONE_DISPLAY || "+91 92441 66752";
 export const SUPPORT_EMAIL = "support@roskyro.in";
 export const PILOT_CITY = "INDIA";
 export const PILOT_STATE = "Bihar";
