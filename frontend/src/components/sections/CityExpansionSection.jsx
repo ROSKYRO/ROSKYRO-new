@@ -6,13 +6,17 @@ const CITY_OPTIONS = [PILOT_CITY, "Gaya", "Muzaffarpur", "Bhagalpur", "Darbhanga
 
 export default function CityExpansionSection() {
   const [city, setCity] = useState("");
+  const [customCity, setCustomCity] = useState("");
   const [status, setStatus] = useState("idle");
 
+  const isOther = city === "Other";
+  const finalCity = isOther ? customCity.trim() : city;
+
   const submit = async () => {
-    if (!city) return;
+    if (!finalCity) return;
     setStatus("sending");
     try {
-      await api.post("/cities/interest", { city_name: city });
+      await api.post("/cities/interest", { city_name: finalCity });
       setStatus("sent");
     } catch {
       setStatus("error");
@@ -36,7 +40,10 @@ export default function CityExpansionSection() {
         <div className="flex flex-wrap items-center justify-center gap-3">
           <select
             value={city}
-            onChange={(e) => setCity(e.target.value)}
+            onChange={(e) => {
+              setCity(e.target.value);
+              setStatus("idle");
+            }}
             className="bg-white/10 border border-parchment/20 rounded-full px-5 py-3 text-sm"
           >
             <option value="">Select your city…</option>
@@ -44,15 +51,32 @@ export default function CityExpansionSection() {
               <option key={c} value={c} className="text-ink">{c}</option>
             ))}
           </select>
+          {isOther && (
+            <input
+              type="text"
+              autoFocus
+              value={customCity}
+              onChange={(e) => {
+                setCustomCity(e.target.value);
+                setStatus("idle");
+              }}
+              onKeyDown={(e) => e.key === "Enter" && submit()}
+              placeholder="Type your city name…"
+              className="bg-white/10 border border-parchment/20 rounded-full px-5 py-3 text-sm placeholder:text-parchment/40 outline-none focus:border-magenta"
+            />
+          )}
           <button
             onClick={submit}
-            disabled={!city || status === "sending"}
+            disabled={!finalCity || status === "sending"}
             className="px-6 py-3 rounded-full bg-brand-gradient text-white font-semibold hover:opacity-90 transition-opacity disabled:opacity-40"
           >
-            I'm interested →
+            {status === "sending" ? "Sending…" : "I'm interested →"}
           </button>
         </div>
-        {status === "sent" && <p className="text-sm text-parchment/70 mt-4">Thanks — we'll factor {city} into where we launch next. <img src="/brand/logo.png" alt="ROSKYRO" className="inline-block w-4 h-4 align-[-3px]" /></p>}
+        {isOther && !customCity && (
+          <p className="text-xs text-parchment/40 mt-2">Please type your city name above to send your interest.</p>
+        )}
+        {status === "sent" && <p className="text-sm text-parchment/70 mt-4">Thanks — we'll factor {finalCity} into where we launch next. <img src="/brand/logo.png" alt="ROSKYRO" className="inline-block w-4 h-4 align-[-3px]" /></p>}
         {status === "error" && <p className="text-sm text-clay mt-4">Couldn't reach the server — try again shortly.</p>}
       </div>
     </section>
