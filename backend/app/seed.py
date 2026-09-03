@@ -11,6 +11,7 @@ from app.models.service import Service
 from app.models.city import City
 from app.models.user import User, UserRole
 from app.core.security import hash_password
+from app.core.config import settings
 
 Base.metadata.create_all(bind=engine)
 
@@ -58,6 +59,21 @@ def run():
 
         db.commit()
         print("Seed complete. Admin login -> phone: 9999999999 / password: admin123 (change this!)")
+
+        # One-time reset hook: if ADMIN_RESET_PHONE / ADMIN_RESET_PASSWORD are set as
+        # env vars, overwrite the existing admin's credentials with them. Lets you
+        # rotate the seeded default without touching the database directly — set the
+        # two Railway variables, redeploy, log in with the new values, then remove
+        # the variables (otherwise every future boot keeps re-applying them).
+        if settings.ADMIN_RESET_PHONE or settings.ADMIN_RESET_PASSWORD:
+            admin = db.query(User).filter(User.role == UserRole.admin).first()
+            if admin:
+                if settings.ADMIN_RESET_PHONE:
+                    admin.phone = settings.ADMIN_RESET_PHONE
+                if settings.ADMIN_RESET_PASSWORD:
+                    admin.hashed_password = hash_password(settings.ADMIN_RESET_PASSWORD)
+                db.commit()
+                print("Admin credentials reset from ADMIN_RESET_PHONE / ADMIN_RESET_PASSWORD.")
     finally:
         db.close()
 
