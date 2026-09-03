@@ -10,7 +10,16 @@ export function AuthProvider({ children }) {
   });
 
   const login = useCallback(async (phone, password) => {
+    // Customer login only — the backend rejects admin/support accounts here.
     const { data } = await api.post("/auth/login", { phone, password });
+    persist(data);
+    return data;
+  }, []);
+
+  const adminLogin = useCallback(async (phone, password) => {
+    // Separate endpoint, separate rate limit, short-lived token. Never call
+    // this from the public-facing Login page.
+    const { data } = await api.post("/admin/auth/login", { phone, password });
     persist(data);
     return data;
   }, []);
@@ -35,7 +44,7 @@ export function AuthProvider({ children }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, login, signup, logout }}>
+    <AuthContext.Provider value={{ user, login, adminLogin, signup, logout }}>
       {children}
     </AuthContext.Provider>
   );

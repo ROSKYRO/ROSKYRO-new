@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import datetime
 
@@ -54,3 +54,32 @@ class ComplaintOut(BaseModel):
 class ComplaintUpdateIn(BaseModel):
     status: ComplaintStatus
     resolution_note: Optional[str] = None
+
+
+class TeamMemberOut(BaseModel):
+    id: int
+    full_name: str
+    phone: str
+    email: Optional[str] = None
+    role: str
+    is_active: bool
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class TeamMemberCreateIn(BaseModel):
+    full_name: str
+    phone: str = Field(..., min_length=10, max_length=15)
+    email: Optional[str] = None
+    password: str = Field(..., min_length=6)
+    role: str = Field(default="support", pattern="^(admin|support)$")
+
+
+class TeamMemberUpdateIn(BaseModel):
+    full_name: Optional[str] = None
+    email: Optional[str] = None
+    role: Optional[str] = Field(default=None, pattern="^(admin|support)$")
+    is_active: Optional[bool] = None
+    password: Optional[str] = Field(default=None, min_length=6)

@@ -8,6 +8,15 @@
 
 export const BRAND = "ROSKYRO";
 
+// Admin login lives at a private, unlinked path instead of a guessable one
+// like /admin/login. Anyone who knows the URL can still open the *login
+// form*, but that's expected for any login page — the real protection is
+// the backend (separate /admin/auth/login endpoint, its own rate limit,
+// short-lived tokens) plus this path never being linked from the public
+// site. CHANGE THIS per deployment via VITE_ADMIN_LOGIN_PATH so it isn't
+// the same default for every ROSKYRO install — treat it like a secret.
+export const ADMIN_LOGIN_PATH = import.meta.env.VITE_ADMIN_LOGIN_PATH || "/team-portal-9f3k";
+
 export const WHATSAPP_BOOKING_NUMBER = import.meta.env.VITE_WHATSAPP_BOOKING_NUMBER || "919244166752";
 export const WHATSAPP_SUPPORT_NUMBER = import.meta.env.VITE_WHATSAPP_SUPPORT_NUMBER || "919244166752";
 export const SUPPORT_PHONE_DISPLAY = import.meta.env.VITE_SUPPORT_PHONE_DISPLAY || "+91 92441 66752";

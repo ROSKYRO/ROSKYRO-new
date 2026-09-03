@@ -37,3 +37,21 @@ class AgentVerificationUpdateIn(BaseModel):
     training_completed: Optional[bool] = None
     id_card_issued: Optional[bool] = None
     status: Optional[AgentStatus] = None
+
+
+class PartnerCreateIn(BaseModel):
+    """Admin adding a partner (care-agent) directly, bypassing the public
+    apply flow — e.g. onboarding someone who was recruited offline."""
+    full_name: str
+    phone: str
+    email: Optional[str] = None
+    city_id: Optional[int] = None
+    hourly_rate: float = 100.0
+    monthly_base_pay: float = 6000.0
+    status: AgentStatus = AgentStatus.applied
+
+
+class PartnerStatusIn(BaseModel):
+    """Quick active/inactive toggle, separate from the full verification
+    checklist. 'active' = accepting bookings, 'suspended' = inactive."""
+    status: AgentStatus

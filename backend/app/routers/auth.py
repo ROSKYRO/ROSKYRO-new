@@ -1,10 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.models.user import User
+from app.models.user import User, UserRole
 from app.schemas.auth import SignupIn, LoginIn, TokenOut
 from app.core.security import hash_password, verify_password, create_access_token
+from app.core.limiter import limiter
+from app.core.config import settings
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -30,9 +32,20 @@ def signup(payload: SignupIn, db: Session = Depends(get_db)):
 
 
 @router.post("/login", response_model=TokenOut)
-def login(payload: LoginIn, db: Session = Depends(get_db)):
+@limiter.limit(settings.LOGIN_RATE_LIMIT)
+def login(request: Request, payload: LoginIn, db: Session = Depends(get_db)):
+    """Customer-facing login only. Admin/support accounts cannot authenticate
+    here — they must use the separate /admin/auth/login endpoint, which is not
+    linked anywhere on the public site. This keeps the two attack surfaces
+    (and their rate limits/session lengths) fully separate: someone hammering
+    this endpoint can never learn whether a given phone number is an admin
+    account, because the response for a valid admin phone + wrong context is
+    identical to "wrong number".
+    """
     user = db.query(User).filter(User.phone == payload.phone).first()
     if not user or not verify_password(payload.password, user.hashed_password):
+        raise HTTPException(status_code=401, detail="Invalid phone number or password")
+    if user.role in (UserRole.admin, UserRole.support):
         raise HTTPException(status_code=401, detail="Invalid phone number or password")
 
     token = create_access_token(subject=str(user.id), role=user.role.value)

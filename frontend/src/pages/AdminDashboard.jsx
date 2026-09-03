@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import api from "../api/client";
+import { useAuth } from "../context/AuthContext";
 
 const CHECK_FIELDS = [
   ["id_verified", "ID verified"],
@@ -24,11 +25,15 @@ const BOOKING_STATUS_LABELS = {
 const COMPLAINT_STATUS_OPTIONS = ["open", "in_review", "resolved"];
 
 export default function AdminDashboard() {
+  const { user } = useAuth();
   const [stats, setStats] = useState(null);
   const [agents, setAgents] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [bookings, setBookings] = useState([]);
   const [complaints, setComplaints] = useState([]);
+  const [services, setServices] = useState([]);
+  const [cities, setCities] = useState([]);
+  const [team, setTeam] = useState([]);
   const [tab, setTab] = useState("overview");
   const [loading, setLoading] = useState(false);
 
@@ -58,6 +63,24 @@ export default function AdminDashboard() {
     setComplaints(data);
     setLoading(false);
   }
+  async function loadServices() {
+    setLoading(true);
+    const { data } = await api.get("/admin/services");
+    setServices(data);
+    setLoading(false);
+  }
+  async function loadCities() {
+    setLoading(true);
+    const { data } = await api.get("/admin/cities");
+    setCities(data);
+    setLoading(false);
+  }
+  async function loadTeam() {
+    setLoading(true);
+    const { data } = await api.get("/admin/team");
+    setTeam(data);
+    setLoading(false);
+  }
 
   useEffect(() => { loadStats(); loadAgents(); }, []);
 
@@ -65,6 +88,9 @@ export default function AdminDashboard() {
     if (tab === "customers" && customers.length === 0) loadCustomers();
     if (tab === "bookings" && bookings.length === 0) loadBookings();
     if (tab === "complaints" && complaints.length === 0) loadComplaints();
+    if (tab === "services" && services.length === 0) loadServices();
+    if (tab === "cities" && cities.length === 0) loadCities();
+    if (tab === "team" && team.length === 0) loadTeam();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
 
@@ -78,12 +104,88 @@ export default function AdminDashboard() {
     loadComplaints();
   }
 
+  // --- Partners: add / activate-deactivate / delete ---
+  async function addPartner(payload) {
+    await api.post("/admin/partners", payload);
+    loadAgents();
+  }
+  async function setPartnerStatus(id, status) {
+    await api.patch(`/admin/partners/${id}/status`, { status });
+    loadAgents();
+  }
+  async function deletePartner(id) {
+    if (!window.confirm("Remove this partner? This can't be undone.")) return;
+    try {
+      await api.delete(`/admin/partners/${id}`);
+      loadAgents();
+    } catch (err) {
+      alert(err.response?.data?.detail || "Could not delete this partner.");
+    }
+  }
+
+  // --- Services: add / activate-deactivate / edit / delete ---
+  async function addService(payload) {
+    await api.post("/admin/services", payload);
+    loadServices();
+  }
+  async function updateService(id, payload) {
+    await api.patch(`/admin/services/${id}`, payload);
+    loadServices();
+  }
+  async function deleteService(id) {
+    if (!window.confirm("Delete this service? This can't be undone.")) return;
+    try {
+      await api.delete(`/admin/services/${id}`);
+      loadServices();
+    } catch (err) {
+      alert(err.response?.data?.detail || "Could not delete this service.");
+    }
+  }
+
+  // --- Cities: add / live-inactive / edit / delete ---
+  async function addCity(payload) {
+    await api.post("/admin/cities", payload);
+    loadCities();
+  }
+  async function updateCity(id, payload) {
+    await api.patch(`/admin/cities/${id}`, payload);
+    loadCities();
+  }
+  async function deleteCity(id) {
+    if (!window.confirm("Delete this city? This can't be undone.")) return;
+    try {
+      await api.delete(`/admin/cities/${id}`);
+      loadCities();
+    } catch (err) {
+      alert(err.response?.data?.detail || "Could not delete this city.");
+    }
+  }
+
+  // --- Team: add / activate-deactivate / delete ---
+  async function addTeamMember(payload) {
+    await api.post("/admin/team", payload);
+    loadTeam();
+  }
+  async function updateTeamMember(id, payload) {
+    await api.patch(`/admin/team/${id}`, payload);
+    loadTeam();
+  }
+  async function deleteTeamMember(id) {
+    if (!window.confirm("Remove this team member? This can't be undone.")) return;
+    try {
+      await api.delete(`/admin/team/${id}`);
+      loadTeam();
+    } catch (err) {
+      alert(err.response?.data?.detail || "Could not remove this team member.");
+    }
+  }
+
   return (
     <div className="max-w-6xl mx-auto px-5 py-12">
       <h1 className="font-display text-3xl text-ink mb-8">Admin dashboard</h1>
 
       <div className="flex gap-6 border-b border-ink/10 mb-8 overflow-x-auto">
-        {["overview", "partners", "customers", "bookings", "complaints"].map((t) => (
+        {["overview", "partners", "services", "cities", "team", "customers", "bookings", "complaints"].map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -111,16 +213,40 @@ export default function AdminDashboard() {
 
       {tab === "partners" && (
         <div className="space-y-4">
+          <AddPartnerForm onAdd={addPartner} />
           {agents.map((a) => (
             <div key={a.id} className="border border-ink/10 rounded-card p-5">
-              <div className="flex justify-between items-center mb-3">
+              <div className="flex justify-between items-center mb-3 gap-3 flex-wrap">
                 <div>
                   <div className="font-semibold text-ink">{a.full_name}</div>
                   <div className="text-sm text-ink/50">{a.phone} · {a.status} · {a.verification_progress}/6 checks</div>
                 </div>
-                <span className={`text-xs font-semibold px-3 py-1 rounded-full ${a.is_fully_verified ? "bg-violet/15 text-magenta" : "bg-flare/20 text-ink"}`}>
-                  {a.is_fully_verified ? "Fully verified" : "In progress"}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className={`text-xs font-semibold px-3 py-1 rounded-full ${a.is_fully_verified ? "bg-violet/15 text-magenta" : "bg-flare/20 text-ink"}`}>
+                    {a.is_fully_verified ? "Fully verified" : "In progress"}
+                  </span>
+                  {a.status === "suspended" ? (
+                    <button
+                      onClick={() => setPartnerStatus(a.id, "active")}
+                      className="text-xs font-semibold px-3 py-1.5 rounded-full bg-violet/15 text-magenta"
+                    >
+                      Activate
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => setPartnerStatus(a.id, "suspended")}
+                      className="text-xs font-semibold px-3 py-1.5 rounded-full bg-ink/10 text-ink/60"
+                    >
+                      Deactivate
+                    </button>
+                  )}
+                  <button
+                    onClick={() => deletePartner(a.id)}
+                    className="text-xs font-semibold px-3 py-1.5 rounded-full bg-clay/15 text-clay"
+                  >
+                    Delete
+                  </button>
+                </div>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {CHECK_FIELDS.map(([field, label]) => (
@@ -137,6 +263,39 @@ export default function AdminDashboard() {
             </div>
           ))}
           {agents.length === 0 && <p className="text-ink/60">No partner applications yet.</p>}
+        </div>
+      )}
+
+      {tab === "services" && (
+        <div className="space-y-4">
+          <AddServiceForm onAdd={addService} />
+          {loading && <p className="text-ink/50">Loading…</p>}
+          {services.map((s) => (
+            <ServiceRow key={s.id} service={s} onUpdate={updateService} onDelete={deleteService} />
+          ))}
+          {!loading && services.length === 0 && <p className="text-ink/60">No services yet.</p>}
+        </div>
+      )}
+
+      {tab === "cities" && (
+        <div className="space-y-4">
+          <AddCityForm onAdd={addCity} />
+          {loading && <p className="text-ink/50">Loading…</p>}
+          {cities.map((c) => (
+            <CityRow key={c.id} city={c} onUpdate={updateCity} onDelete={deleteCity} />
+          ))}
+          {!loading && cities.length === 0 && <p className="text-ink/60">No cities yet.</p>}
+        </div>
+      )}
+
+      {tab === "team" && (
+        <div className="space-y-4">
+          <AddTeamMemberForm onAdd={addTeamMember} />
+          {loading && <p className="text-ink/50">Loading…</p>}
+          {team.map((m) => (
+            <TeamRow key={m.id} member={m} isSelf={user?.user_id === m.id} onUpdate={updateTeamMember} onDelete={deleteTeamMember} />
+          ))}
+          {!loading && team.length === 0 && <p className="text-ink/60">No team members yet.</p>}
         </div>
       )}
 
@@ -291,5 +450,356 @@ function Stat({ label, value, highlight }) {
       <div className="text-xs text-ink/50 mb-1">{label}</div>
       <div className="font-display text-2xl text-ink">{value}</div>
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Services: add form + row with inline pricing/active edit + delete
+// ---------------------------------------------------------------------------
+
+function AddServiceForm({ onAdd }) {
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState({ name: "", slug: "", icon: "", short_description: "", hourly_rate: "" });
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  function set(field) {
+    return (e) => setForm((f) => ({ ...f, [field]: e.target.value }));
+  }
+
+  async function submit(e) {
+    e.preventDefault();
+    setError("");
+    setSaving(true);
+    try {
+      await onAdd({ ...form, hourly_rate: parseFloat(form.hourly_rate) });
+      setForm({ name: "", slug: "", icon: "", short_description: "", hourly_rate: "" });
+      setOpen(false);
+    } catch (err) {
+      setError(err.response?.data?.detail || "Could not add service.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!open) {
+    return (
+      <button onClick={() => setOpen(true)} className="text-sm font-semibold px-4 py-2 rounded-full bg-violet text-white">
+        + Add service
+      </button>
+    );
+  }
+
+  return (
+    <form onSubmit={submit} className="border border-ink/10 rounded-card p-5 grid sm:grid-cols-2 gap-3">
+      <Input label="Name" value={form.name} onChange={set("name")} required />
+      <Input label="Slug (URL-friendly, unique)" value={form.slug} onChange={set("slug")} required />
+      <Input label="Icon (emoji, optional)" value={form.icon} onChange={set("icon")} />
+      <Input label="Hourly rate (₹)" type="number" value={form.hourly_rate} onChange={set("hourly_rate")} required />
+      <div className="sm:col-span-2">
+        <Input label="Short description" value={form.short_description} onChange={set("short_description")} />
+      </div>
+      {error && <p className="sm:col-span-2 text-sm text-clay">{error}</p>}
+      <div className="sm:col-span-2 flex gap-2">
+        <button disabled={saving} className="text-sm font-semibold px-4 py-2 rounded-full bg-violet text-white disabled:opacity-60">
+          {saving ? "Saving…" : "Save service"}
+        </button>
+        <button type="button" onClick={() => setOpen(false)} className="text-sm font-semibold px-4 py-2 rounded-full bg-ink/10 text-ink/70">
+          Cancel
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function ServiceRow({ service, onUpdate, onDelete }) {
+  const [editing, setEditing] = useState(false);
+  const [rate, setRate] = useState(service.hourly_rate);
+
+  async function saveRate() {
+    await onUpdate(service.id, { hourly_rate: parseFloat(rate) });
+    setEditing(false);
+  }
+
+  return (
+    <div className={`border rounded-card p-5 flex flex-wrap items-center justify-between gap-3 ${service.is_active ? "border-ink/10" : "border-ink/10 bg-ink/5 opacity-70"}`}>
+      <div>
+        <div className="font-semibold text-ink">{service.icon} {service.name}</div>
+        <div className="text-sm text-ink/50">{service.short_description || service.slug}</div>
+      </div>
+      <div className="flex items-center gap-3">
+        {editing ? (
+          <>
+            <input
+              type="number"
+              value={rate}
+              onChange={(e) => setRate(e.target.value)}
+              className="w-24 text-sm border border-ink/15 rounded-lg px-2 py-1.5"
+            />
+            <button onClick={saveRate} className="text-xs font-semibold px-3 py-1.5 rounded-full bg-violet text-white">Save</button>
+            <button onClick={() => { setEditing(false); setRate(service.hourly_rate); }} className="text-xs font-semibold px-3 py-1.5 rounded-full bg-ink/10 text-ink/60">Cancel</button>
+          </>
+        ) : (
+          <button onClick={() => setEditing(true)} className="text-sm font-semibold text-ink hover:text-violet">
+            ₹{service.hourly_rate}/hr
+          </button>
+        )}
+        <span className={`text-xs font-semibold px-3 py-1 rounded-full ${service.is_active ? "bg-violet/15 text-magenta" : "bg-ink/10 text-ink/50"}`}>
+          {service.is_active ? "Active" : "Inactive"}
+        </span>
+        <button
+          onClick={() => onUpdate(service.id, { is_active: !service.is_active })}
+          className="text-xs font-semibold px-3 py-1.5 rounded-full bg-ink/10 text-ink/60"
+        >
+          {service.is_active ? "Deactivate" : "Activate"}
+        </button>
+        <button onClick={() => onDelete(service.id)} className="text-xs font-semibold px-3 py-1.5 rounded-full bg-clay/15 text-clay">
+          Delete
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Cities: add form + row with live/inactive toggle + delete
+// ---------------------------------------------------------------------------
+
+function AddCityForm({ onAdd }) {
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState({ name: "", state: "", is_live: false });
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  async function submit(e) {
+    e.preventDefault();
+    setError("");
+    setSaving(true);
+    try {
+      await onAdd(form);
+      setForm({ name: "", state: "", is_live: false });
+      setOpen(false);
+    } catch (err) {
+      setError(err.response?.data?.detail || "Could not add city.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!open) {
+    return (
+      <button onClick={() => setOpen(true)} className="text-sm font-semibold px-4 py-2 rounded-full bg-violet text-white">
+        + Add city
+      </button>
+    );
+  }
+
+  return (
+    <form onSubmit={submit} className="border border-ink/10 rounded-card p-5 grid sm:grid-cols-2 gap-3">
+      <Input label="City name" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required />
+      <Input label="State" value={form.state} onChange={(e) => setForm((f) => ({ ...f, state: e.target.value }))} />
+      <label className="flex items-center gap-2 text-sm text-ink/70">
+        <input type="checkbox" checked={form.is_live} onChange={(e) => setForm((f) => ({ ...f, is_live: e.target.checked }))} />
+        Launch as live (bookable) immediately
+      </label>
+      {error && <p className="sm:col-span-2 text-sm text-clay">{error}</p>}
+      <div className="sm:col-span-2 flex gap-2">
+        <button disabled={saving} className="text-sm font-semibold px-4 py-2 rounded-full bg-violet text-white disabled:opacity-60">
+          {saving ? "Saving…" : "Save city"}
+        </button>
+        <button type="button" onClick={() => setOpen(false)} className="text-sm font-semibold px-4 py-2 rounded-full bg-ink/10 text-ink/70">
+          Cancel
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function CityRow({ city, onUpdate, onDelete }) {
+  return (
+    <div className="border border-ink/10 rounded-card p-5 flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <div className="font-semibold text-ink">{city.name}{city.state ? `, ${city.state}` : ""}</div>
+        <div className="text-sm text-ink/50">{city.agent_count} partner(s) · {city.interest_count} waitlist requests</div>
+      </div>
+      <div className="flex items-center gap-2">
+        <span className={`text-xs font-semibold px-3 py-1 rounded-full ${city.is_live ? "bg-violet/15 text-magenta" : "bg-ink/10 text-ink/50"}`}>
+          {city.is_live ? "Live" : "Inactive"}
+        </span>
+        <button
+          onClick={() => onUpdate(city.id, { is_live: !city.is_live })}
+          className="text-xs font-semibold px-3 py-1.5 rounded-full bg-ink/10 text-ink/60"
+        >
+          {city.is_live ? "Mark inactive" : "Mark live"}
+        </button>
+        <button onClick={() => onDelete(city.id)} className="text-xs font-semibold px-3 py-1.5 rounded-full bg-clay/15 text-clay">
+          Delete
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Team: add form + row with active toggle + delete
+// ---------------------------------------------------------------------------
+
+function AddTeamMemberForm({ onAdd }) {
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState({ full_name: "", phone: "", email: "", password: "", role: "support" });
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  function set(field) {
+    return (e) => setForm((f) => ({ ...f, [field]: e.target.value }));
+  }
+
+  async function submit(e) {
+    e.preventDefault();
+    setError("");
+    setSaving(true);
+    try {
+      await onAdd(form);
+      setForm({ full_name: "", phone: "", email: "", password: "", role: "support" });
+      setOpen(false);
+    } catch (err) {
+      setError(err.response?.data?.detail || "Could not add team member.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!open) {
+    return (
+      <button onClick={() => setOpen(true)} className="text-sm font-semibold px-4 py-2 rounded-full bg-violet text-white">
+        + Add team member
+      </button>
+    );
+  }
+
+  return (
+    <form onSubmit={submit} className="border border-ink/10 rounded-card p-5 grid sm:grid-cols-2 gap-3">
+      <Input label="Full name" value={form.full_name} onChange={set("full_name")} required />
+      <Input label="Phone number" value={form.phone} onChange={set("phone")} required />
+      <Input label="Email (optional)" value={form.email} onChange={set("email")} />
+      <Input label="Temporary password" type="password" value={form.password} onChange={set("password")} required />
+      <label className="text-sm text-ink/70">
+        Role
+        <select value={form.role} onChange={set("role")} className="mt-1 w-full text-sm border border-ink/15 rounded-lg px-3 py-2 bg-white">
+          <option value="support">Support (limited access)</option>
+          <option value="admin">Admin (full access)</option>
+        </select>
+      </label>
+      {error && <p className="sm:col-span-2 text-sm text-clay">{error}</p>}
+      <div className="sm:col-span-2 flex gap-2">
+        <button disabled={saving} className="text-sm font-semibold px-4 py-2 rounded-full bg-violet text-white disabled:opacity-60">
+          {saving ? "Saving…" : "Add member"}
+        </button>
+        <button type="button" onClick={() => setOpen(false)} className="text-sm font-semibold px-4 py-2 rounded-full bg-ink/10 text-ink/70">
+          Cancel
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function TeamRow({ member, isSelf, onUpdate, onDelete }) {
+  return (
+    <div className="border border-ink/10 rounded-card p-5 flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <div className="font-semibold text-ink">{member.full_name}{isSelf ? " (you)" : ""}</div>
+        <div className="text-sm text-ink/50">{member.phone} · {member.email || "no email"} · <span className="capitalize">{member.role}</span></div>
+      </div>
+      <div className="flex items-center gap-2">
+        <span className={`text-xs font-semibold px-3 py-1 rounded-full ${member.is_active ? "bg-violet/15 text-magenta" : "bg-ink/10 text-ink/50"}`}>
+          {member.is_active ? "Active" : "Inactive"}
+        </span>
+        {!isSelf && (
+          <button
+            onClick={() => onUpdate(member.id, { is_active: !member.is_active })}
+            className="text-xs font-semibold px-3 py-1.5 rounded-full bg-ink/10 text-ink/60"
+          >
+            {member.is_active ? "Deactivate" : "Activate"}
+          </button>
+        )}
+        {!isSelf && (
+          <button onClick={() => onDelete(member.id)} className="text-xs font-semibold px-3 py-1.5 rounded-full bg-clay/15 text-clay">
+            Delete
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Partners: add form (used at top of the Partners tab)
+// ---------------------------------------------------------------------------
+
+function AddPartnerForm({ onAdd }) {
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState({ full_name: "", phone: "", email: "", hourly_rate: "100", status: "applied" });
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  function set(field) {
+    return (e) => setForm((f) => ({ ...f, [field]: e.target.value }));
+  }
+
+  async function submit(e) {
+    e.preventDefault();
+    setError("");
+    setSaving(true);
+    try {
+      await onAdd({ ...form, hourly_rate: parseFloat(form.hourly_rate) });
+      setForm({ full_name: "", phone: "", email: "", hourly_rate: "100", status: "applied" });
+      setOpen(false);
+    } catch (err) {
+      setError(err.response?.data?.detail || "Could not add partner.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!open) {
+    return (
+      <button onClick={() => setOpen(true)} className="text-sm font-semibold px-4 py-2 rounded-full bg-violet text-white">
+        + Add partner
+      </button>
+    );
+  }
+
+  return (
+    <form onSubmit={submit} className="border border-ink/10 rounded-card p-5 grid sm:grid-cols-2 gap-3">
+      <Input label="Full name" value={form.full_name} onChange={set("full_name")} required />
+      <Input label="Phone number" value={form.phone} onChange={set("phone")} required />
+      <Input label="Email (optional)" value={form.email} onChange={set("email")} />
+      <Input label="Hourly rate (₹)" type="number" value={form.hourly_rate} onChange={set("hourly_rate")} required />
+      <label className="text-sm text-ink/70">
+        Starting status
+        <select value={form.status} onChange={set("status")} className="mt-1 w-full text-sm border border-ink/15 rounded-lg px-3 py-2 bg-white">
+          <option value="applied">Applied (goes through verification)</option>
+          <option value="active">Active (already vetted)</option>
+        </select>
+      </label>
+      {error && <p className="sm:col-span-2 text-sm text-clay">{error}</p>}
+      <div className="sm:col-span-2 flex gap-2">
+        <button disabled={saving} className="text-sm font-semibold px-4 py-2 rounded-full bg-violet text-white disabled:opacity-60">
+          {saving ? "Saving…" : "Add partner"}
+        </button>
+        <button type="button" onClick={() => setOpen(false)} className="text-sm font-semibold px-4 py-2 rounded-full bg-ink/10 text-ink/70">
+          Cancel
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function Input({ label, ...props }) {
+  return (
+    <label className="text-sm text-ink/70 block">
+      {label}
+      <input {...props} className="mt-1 w-full text-sm border border-ink/15 rounded-lg px-3 py-2" />
+    </label>
   );
 }

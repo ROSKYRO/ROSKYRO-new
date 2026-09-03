@@ -21,7 +21,16 @@ class Settings(BaseSettings):
 
     SECRET_KEY: str = "change-this-in-production-to-a-long-random-string"
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days (customer sessions)
+
+    # Admin/support sessions. Matches customer session length (7 days) for
+    # convenience — shorten this back down (e.g. 60-120 minutes) if you'd
+    # rather trade convenience for a smaller window if a token ever leaks.
+    ADMIN_ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
+
+    # Basic login rate limiting (per IP). Admin login gets a tighter limit.
+    LOGIN_RATE_LIMIT: str = "10/minute"
+    ADMIN_LOGIN_RATE_LIMIT: str = "5/minute"
 
     # Kept as a plain string (not List[str]) because pydantic-settings tries to
     # JSON-parse env vars for list-typed fields, which breaks Railway's plain
