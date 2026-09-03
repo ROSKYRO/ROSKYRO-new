@@ -12,6 +12,15 @@ COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
 
 COPY frontend/ .
+
+# VITE_* variables are baked into the JS bundle at BUILD time, not read at
+# runtime — so they must come in as Docker build args, not just env vars on
+# the running container. Railway auto-populates any ARG here from a service
+# variable of the same name, so setting VITE_ADMIN_LOGIN_PATH in the Railway
+# dashboard's Variables tab is enough; it flows through automatically.
+ARG VITE_ADMIN_LOGIN_PATH
+ENV VITE_ADMIN_LOGIN_PATH=$VITE_ADMIN_LOGIN_PATH
+
 # No VITE_API_URL set here on purpose: the built app calls same-origin "/api",
 # which this combined service serves itself. See frontend/src/api/client.js.
 RUN npm run build
