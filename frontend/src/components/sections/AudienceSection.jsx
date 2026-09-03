@@ -1,21 +1,18 @@
-const AUDIENCES = [
-  { icon: "🌍", title: "Families living away", desc: "You're in another city or country, and your parents are here. Arrange care from anywhere, pay from anywhere, and get an update after every visit — so the distance feels a little smaller." },
-  { icon: "🏠", title: "Busy families nearby", desc: "You're here, but stretched between work, children and an elderly parent. A trusted Partner takes the hospital trip or the afternoon care off your plate, without the worry of who's coming." },
-];
+import { BOOK_WA_LINK } from "../../config";
+
+const IDEAL_FOR = ["Working Professionals", "Families Living in Different Cities", "Senior Citizens", "Post-Recovery Support", "Busy Caregivers", "Families During Hospitalisation", "People Living Alone"];
 
 export default function AudienceSection() {
   return (
-    <section className="max-w-6xl mx-auto px-5 py-20">
-      <span className="text-xs font-semibold tracking-wide text-magenta">Who we're for</span>
-      <h2 className="font-display text-3xl text-ink mt-3 mb-10">Built for the family that can't always be present.</h2>
-      <div className="grid md:grid-cols-2 gap-6">
-        {AUDIENCES.map((a) => (
-          <div key={a.title} className="bg-parchment border border-ink/10 rounded-card p-8">
-            <div className="text-3xl mb-4">{a.icon}</div>
-            <div className="font-display text-xl text-ink mb-2">{a.title}</div>
-            <p className="text-sm text-ink/60 leading-relaxed">{a.desc}</p>
-          </div>
-        ))}
+    <section id="families" className="max-w-6xl mx-auto px-5 py-20">
+      <div className="bg-ink text-parchment rounded-card p-8 md:p-12">
+        <span className="text-xs font-semibold tracking-wide text-magenta">FOR FAMILIES</span>
+        <h2 className="font-display text-3xl md:text-4xl mt-3 mb-5">You Can't Always Be There. But Support Can Be.</h2>
+        <p className="text-parchment/70 leading-relaxed max-w-3xl mb-8">Whether you live in another city, have a demanding job, are travelling, or simply need additional support for your family member, ROSKYRO helps make trusted assistance more accessible.</p>
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-8">
+          {IDEAL_FOR.map((item) => <div key={item} className="text-sm bg-white/5 rounded-lg px-4 py-3">✓ {item}</div>)}
+        </div>
+        <a href={BOOK_WA_LINK} target="_blank" rel="noreferrer" className="inline-block px-6 py-3 rounded-full bg-white text-ink font-semibold">Find Support for Your Family</a>
       </div>
     </section>
   );
