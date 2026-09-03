@@ -43,6 +43,13 @@ class Settings(BaseSettings):
     # Safe to leave on in production — seed.py is idempotent (checks before inserting).
     AUTO_SEED: bool = True
 
+    # Optional: set these as Railway Variables to reset the admin login on next boot
+    # (e.g. after the default 9999999999/admin123 has been used). Leave unset normally —
+    # when both are set, seed.py overwrites the existing admin's phone/password with
+    # these values on every boot, so remove the variables again once you've changed in.
+    ADMIN_RESET_PHONE: str | None = None
+    ADMIN_RESET_PASSWORD: str | None = None
+
     @field_validator("DATABASE_URL")
     @classmethod
     def _normalize_db_url(cls, v: str) -> str:
