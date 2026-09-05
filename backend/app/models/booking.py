@@ -5,6 +5,7 @@ from sqlalchemy import Column, Integer, String, DateTime, Enum, Float, ForeignKe
 from sqlalchemy.orm import relationship
 
 from app.db.session import Base
+from app.models.journey import JourneyStage
 
 
 class BookingStatus(str, enum.Enum):
@@ -32,6 +33,12 @@ class Booking(Base):
     agent_id = Column(Integer, ForeignKey("agents.id"), nullable=True)
     service_id = Column(Integer, ForeignKey("services.id"), nullable=False)
     city_id = Column(Integer, ForeignKey("cities.id"), nullable=True)
+    hospital_id = Column(Integer, ForeignKey("hospitals.id"), nullable=True)
+
+    # Where the patient physically is right now (Journey Engine). Separate from
+    # `status` above, which tracks billing/PIN state. Nullable so existing rows
+    # and non-hospital bookings (e.g. Elder Companion Care) simply don't use it.
+    current_stage = Column(Enum(JourneyStage), nullable=True)
 
     address = Column(Text, nullable=False)
     contact_on_arrival_name = Column(String, nullable=True)
@@ -65,8 +72,13 @@ class Booking(Base):
     sos_triggered = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
-    customer = relationship("User", back_populates="bookings")
+    customer = relationship("User", back_populates="bookings", foreign_keys=[customer_id])
     agent = relationship("Agent", back_populates="bookings")
     service = relationship("Service")
+    hospital = relationship("Hospital", back_populates="bookings")
     payment = relationship("Payment", back_populates="booking", uselist=False)
     review = relationship("Review", back_populates="booking", uselist=False)
+    journey_updates = relationship(
+        "JourneyUpdate", back_populates="booking",
+        order_by="JourneyUpdate.created_at", cascade="all, delete-orphan",
+    )

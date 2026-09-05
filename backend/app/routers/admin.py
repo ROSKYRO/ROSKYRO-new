@@ -17,6 +17,7 @@ from app.models.payment import Payment, PaymentStatus
 from app.models.complaint import Complaint, ComplaintStatus
 from app.models.service import Service
 from app.models.city import City
+from app.models.hospital import Hospital
 from app.schemas.admin import (
     CustomerOut, AdminBookingOut, ComplaintOut, ComplaintUpdateIn,
     TeamMemberOut, TeamMemberCreateIn, TeamMemberUpdateIn,
@@ -25,6 +26,9 @@ from app.schemas.auth import LoginIn, TokenOut
 from app.schemas.service import ServiceOut, ServiceCreateIn, ServiceUpdateIn
 from app.schemas.city import CityAdminOut, CityCreateIn, CityUpdateIn
 from app.schemas.agent import AgentOut, PartnerCreateIn, PartnerStatusIn
+from app.schemas.hospital import (
+    HospitalOut, HospitalCreateIn, HospitalUpdateIn, HospitalStaffCreateIn, HospitalStaffOut,
+)
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -156,6 +160,7 @@ def list_all_bookings(
             customer_phone=b.customer.phone if b.customer else "—",
             agent_name=b.agent.full_name if b.agent else None,
             service_name=b.service.name if b.service else "—",
+            hospital_name=b.hospital.name if b.hospital else None,
             status=b.status,
             scheduled_start=b.scheduled_start,
             booked_hours=b.booked_hours,
@@ -363,6 +368,117 @@ def admin_delete_partner(agent_id: int, db: Session = Depends(get_db), _: User =
     db.delete(agent)
     db.commit()
     return {"detail": "Partner removed"}
+
+
+# ============================================================================
+# HOSPITALS (partners) — onboard, edit, and issue Hospital Console logins.
+# This is the "Enterprise Hospital" side of FINAL REVENUE ARCHITECTURE.
+# ============================================================================
+
+def _hospital_out(h: Hospital) -> HospitalOut:
+    return HospitalOut(
+        id=h.id, name=h.name, city_id=h.city_id,
+        city_name=h.city.name if h.city else None,
+        address=h.address, contact_name=h.contact_name, contact_phone=h.contact_phone,
+        contact_email=h.contact_email, contract_status=h.contract_status,
+        monthly_contract_amount=h.monthly_contract_amount, is_active=h.is_active,
+        logo_url=h.logo_url, created_at=h.created_at,
+    )
+
+
+@router.get("/hospitals", response_model=List[HospitalOut])
+def admin_list_hospitals(db: Session = Depends(get_db), _: User = Depends(require_admin)):
+    hospitals = db.query(Hospital).order_by(Hospital.created_at.desc()).all()
+    return [_hospital_out(h) for h in hospitals]
+
+
+@router.post("/hospitals", response_model=HospitalOut)
+def admin_create_hospital(payload: HospitalCreateIn, db: Session = Depends(get_db), _: User = Depends(require_admin)):
+    hospital = Hospital(**payload.model_dump())
+    db.add(hospital)
+    db.commit()
+    db.refresh(hospital)
+    return _hospital_out(hospital)
+
+
+@router.patch("/hospitals/{hospital_id}", response_model=HospitalOut)
+def admin_update_hospital(hospital_id: int, payload: HospitalUpdateIn, db: Session = Depends(get_db), _: User = Depends(require_admin)):
+    hospital = db.query(Hospital).get(hospital_id)
+    if not hospital:
+        raise HTTPException(status_code=404, detail="Hospital not found")
+    for field, value in payload.model_dump(exclude_unset=True).items():
+        setattr(hospital, field, value)
+    db.commit()
+    db.refresh(hospital)
+    return _hospital_out(hospital)
+
+
+@router.delete("/hospitals/{hospital_id}")
+def admin_delete_hospital(hospital_id: int, db: Session = Depends(get_db), _: User = Depends(require_admin)):
+    hospital = db.query(Hospital).get(hospital_id)
+    if not hospital:
+        raise HTTPException(status_code=404, detail="Hospital not found")
+    has_bookings = db.query(Booking.id).filter(Booking.hospital_id == hospital_id).first() is not None
+    if has_bookings:
+        raise HTTPException(
+            status_code=400,
+            detail="This hospital has journey history and can't be deleted. Mark it inactive instead.",
+        )
+    db.query(User).filter(User.hospital_id == hospital_id).update({User.hospital_id: None})
+    db.delete(hospital)
+    db.commit()
+    return {"detail": "Hospital removed"}
+
+
+@router.get("/hospitals/{hospital_id}/staff", response_model=List[HospitalStaffOut])
+def admin_list_hospital_staff(hospital_id: int, db: Session = Depends(get_db), _: User = Depends(require_admin)):
+    staff = db.query(User).filter(User.hospital_id == hospital_id, User.role == UserRole.hospital_staff).all()
+    hospital = db.query(Hospital).get(hospital_id)
+    return [
+        HospitalStaffOut(
+            id=s.id, full_name=s.full_name, phone=s.phone, email=s.email,
+            hospital_id=s.hospital_id, hospital_name=hospital.name if hospital else None,
+            is_active=s.is_active, created_at=s.created_at,
+        )
+        for s in staff
+    ]
+
+
+@router.post("/hospitals/staff", response_model=HospitalStaffOut)
+def admin_create_hospital_staff(payload: HospitalStaffCreateIn, db: Session = Depends(get_db), _: User = Depends(require_admin)):
+    """Issue a Hospital Console login for a partner hospital."""
+    hospital = db.query(Hospital).get(payload.hospital_id)
+    if not hospital:
+        raise HTTPException(status_code=404, detail="Hospital not found")
+    if db.query(User).filter(User.phone == payload.phone).first():
+        raise HTTPException(status_code=400, detail="An account with this phone number already exists")
+
+    staff = User(
+        full_name=payload.full_name,
+        phone=payload.phone,
+        email=payload.email,
+        hashed_password=hash_password(payload.password),
+        role=UserRole.hospital_staff,
+        hospital_id=payload.hospital_id,
+    )
+    db.add(staff)
+    db.commit()
+    db.refresh(staff)
+    return HospitalStaffOut(
+        id=staff.id, full_name=staff.full_name, phone=staff.phone, email=staff.email,
+        hospital_id=staff.hospital_id, hospital_name=hospital.name,
+        is_active=staff.is_active, created_at=staff.created_at,
+    )
+
+
+@router.delete("/hospitals/staff/{staff_id}")
+def admin_delete_hospital_staff(staff_id: int, db: Session = Depends(get_db), _: User = Depends(require_admin)):
+    staff = db.query(User).filter(User.id == staff_id, User.role == UserRole.hospital_staff).first()
+    if not staff:
+        raise HTTPException(status_code=404, detail="Hospital staff login not found")
+    db.delete(staff)
+    db.commit()
+    return {"detail": "Hospital Console login removed"}
 
 
 # ============================================================================

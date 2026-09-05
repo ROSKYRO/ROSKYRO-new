@@ -8,6 +8,8 @@ export default function Services() {
   const navigate = useNavigate();
   const [services, setServices] = useState([]);
   const [selected, setSelected] = useState(null);
+  const [hospitals, setHospitals] = useState([]);
+  const [hospitalId, setHospitalId] = useState("");
   const [hours, setHours] = useState(2);
   const [distanceKm, setDistanceKm] = useState(4);
   const [endsElsewhere, setEndsElsewhere] = useState(false);
@@ -24,6 +26,7 @@ export default function Services() {
       setServices(r.data);
       if (r.data.length) setSelected(r.data[0]);
     });
+    api.get("/hospitals").then((r) => setHospitals(r.data)).catch(() => setHospitals([]));
   }, []);
 
   useEffect(() => {
@@ -55,6 +58,7 @@ export default function Services() {
         booked_hours: Number(hours),
         distance_km: Number(distanceKm),
         ends_at_different_location: endsElsewhere,
+        hospital_id: hospitalId ? Number(hospitalId) : null,
       });
       setConfirmed(data);
     } catch (err) {
@@ -109,6 +113,27 @@ export default function Services() {
         </div>
 
         <form onSubmit={handleBook} className="space-y-4">
+          {hospitals.length > 0 && (
+            <div>
+              <label className="text-sm font-medium text-ink/70">Hospital (optional — for hospital-floor journeys like OPD, admission, discharge)</label>
+              <select
+                value={hospitalId}
+                onChange={(e) => setHospitalId(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-ink/15 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-violet bg-white"
+              >
+                <option value="">No specific hospital</option>
+                {hospitals.map((h) => (
+                  <option key={h.id} value={h.id}>{h.name}{h.city_name ? ` — ${h.city_name}` : ""}</option>
+                ))}
+              </select>
+              {hospitalId && (
+                <p className="text-xs text-ink/50 mt-1">
+                  Your family will get a live journey timeline (Assist Assigned → On the Way → Arrival → Registration → Consultation → Diagnostics → Admission/Discharge → Home) on the My Bookings page.
+                </p>
+              )}
+            </div>
+          )}
+
           <div className="grid sm:grid-cols-2 gap-4">
             <div>
               <label className="text-sm font-medium text-ink/70">Hours needed</label>

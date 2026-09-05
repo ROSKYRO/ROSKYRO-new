@@ -1,7 +1,7 @@
 import { Routes, Route } from "react-router-dom";
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
-import { RequireAuth, RequireAdmin } from "./components/ProtectedRoute";
+import { RequireAuth, RequireAdmin, RequireHospitalStaff } from "./components/ProtectedRoute";
 import { ADMIN_LOGIN_PATH } from "./config";
 
 import Home from "./pages/Home";
@@ -13,6 +13,8 @@ import BecomePartner from "./pages/BecomePartner";
 import HowItWorks from "./pages/HowItWorks";
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminLogin from "./pages/AdminLogin";
+import HospitalLogin from "./pages/HospitalLogin";
+import HospitalDashboard from "./pages/HospitalDashboard";
 
 export default function App() {
   return (
@@ -30,6 +32,9 @@ export default function App() {
           {/* Not linked from Navbar/anywhere on purpose — reachable only if you know the URL. */}
           <Route path={ADMIN_LOGIN_PATH} element={<AdminLogin />} />
           <Route path="/admin" element={<RequireAdmin><AdminDashboard /></RequireAdmin>} />
+          {/* Hospital Console — a B2B portal for partner hospitals. */}
+          <Route path="/hospital-login" element={<HospitalLogin />} />
+          <Route path="/hospital/dashboard" element={<RequireHospitalStaff><HospitalDashboard /></RequireHospitalStaff>} />
         </Routes>
       </main>
       <Footer />

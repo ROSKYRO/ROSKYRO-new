@@ -1,7 +1,7 @@
 import enum
 from datetime import datetime
 
-from sqlalchemy import Column, Integer, String, DateTime, Enum, Boolean
+from sqlalchemy import Column, Integer, String, DateTime, Enum, Boolean, ForeignKey
 from sqlalchemy.orm import relationship
 
 from app.db.session import Base
@@ -11,6 +11,7 @@ class UserRole(str, enum.Enum):
     customer = "customer"
     admin = "admin"
     support = "support"
+    hospital_staff = "hospital_staff"  # logs into the Hospital Console, scoped to hospital_id
 
 
 class User(Base):
@@ -27,4 +28,8 @@ class User(Base):
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
+    # Only set for role == hospital_staff — which Hospital Console this login belongs to.
+    hospital_id = Column(Integer, ForeignKey("hospitals.id"), nullable=True)
+
     bookings = relationship("Booking", back_populates="customer")
+    hospital = relationship("Hospital", back_populates="staff")

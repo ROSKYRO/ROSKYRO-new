@@ -30,3 +30,11 @@ def require_admin(user: User = Depends(get_current_user)) -> User:
     if user.role not in (UserRole.admin, UserRole.support):
         raise HTTPException(status_code=403, detail="Admin access required")
     return user
+
+
+def require_hospital_staff(user: User = Depends(get_current_user)) -> User:
+    """Gate for the Hospital Console — logged-in user must be hospital_staff
+    with a hospital_id assigned (admins manage hospitals separately, via /admin)."""
+    if user.role != UserRole.hospital_staff or not user.hospital_id:
+        raise HTTPException(status_code=403, detail="Hospital Console access required")
+    return user

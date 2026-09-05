@@ -12,6 +12,20 @@ const STATUS_LABEL = {
   cancelled: "Cancelled",
 };
 
+const STAGE_LABEL = {
+  assist_assigned: "Assist Assigned",
+  on_the_way: "On the Way",
+  arrived: "Arrived",
+  registration: "Registration",
+  consultation: "Consultation",
+  diagnostics: "Diagnostics",
+  admission: "Admission",
+  discharge: "Discharge",
+  home: "Home Return",
+  follow_up: "Follow-up Care",
+};
+const STAGE_ORDER = Object.keys(STAGE_LABEL);
+
 export default function MyBookings() {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -121,9 +135,68 @@ export default function MyBookings() {
             )}
 
             {b.sos_triggered && <div className="mt-3 text-xs text-clay font-semibold">🚨 SOS alert sent for this booking</div>}
+
+            {b.hospital_id && <JourneyTimeline bookingId={b.id} currentStage={b.current_stage} />}
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+function JourneyTimeline({ bookingId, currentStage }) {
+  const [journey, setJourney] = useState(null);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (open && !journey) {
+      api.get(`/bookings/${bookingId}/journey`).then((r) => setJourney(r.data));
+    }
+  }, [open, journey, bookingId]);
+
+  const currentIndex = STAGE_ORDER.indexOf(currentStage);
+
+  return (
+    <div className="mt-4 border-t border-ink/10 pt-4">
+      <button onClick={() => setOpen((v) => !v)} className="text-sm font-semibold text-violet">
+        {open ? "Hide" : "View"} live journey &amp; family updates
+      </button>
+
+      {open && (
+        <div className="mt-3">
+          <div className="flex flex-wrap gap-2 mb-4">
+            {STAGE_ORDER.map((stage, i) => (
+              <span
+                key={stage}
+                className={`text-xs font-semibold px-3 py-1.5 rounded-full ${
+                  i <= currentIndex ? "bg-violet text-parchment" : "bg-ink/5 text-ink/40"
+                }`}
+              >
+                {STAGE_LABEL[stage]}
+              </span>
+            ))}
+          </div>
+
+          {!journey && <p className="text-sm text-ink/50">Loading updates…</p>}
+          {journey && journey.hospital_name && (
+            <p className="text-sm text-ink/60 mb-2">Hospital: {journey.hospital_name}</p>
+          )}
+          {journey && journey.updates.length === 0 && (
+            <p className="text-sm text-ink/50">No family updates posted yet — check back soon.</p>
+          )}
+          {journey && journey.updates.length > 0 && (
+            <div className="space-y-2">
+              {journey.updates.map((u) => (
+                <div key={u.id} className="text-sm bg-parchment rounded-lg px-4 py-2">
+                  <div className="font-semibold text-ink">{STAGE_LABEL[u.stage] || u.stage}</div>
+                  {u.note && <div className="text-ink/70">{u.note}</div>}
+                  <div className="text-xs text-ink/40 mt-1">{new Date(u.created_at).toLocaleString()}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

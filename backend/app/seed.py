@@ -9,6 +9,7 @@ Usage:  python -m app.seed
 from app.db.session import SessionLocal, engine, Base
 from app.models.service import Service
 from app.models.city import City
+from app.models.hospital import Hospital, HospitalContractStatus
 from app.models.user import User, UserRole
 from app.core.security import hash_password
 from app.core.config import settings
@@ -48,6 +49,31 @@ def run():
                 City(name="Lucknow", state="Uttar Pradesh", is_live=False),
             ])
 
+        if not db.query(Hospital).first():
+            live_city = db.query(City).filter(City.is_live == True).first()  # noqa: E712
+            demo_hospital = Hospital(
+                name="Apex Multispecialty Hospital",
+                city_id=live_city.id if live_city else None,
+                address="Ring Road, near City Center",
+                contact_name="Front Office Desk",
+                contact_phone="9800000000",
+                contract_status=HospitalContractStatus.active,
+                monthly_contract_amount=45000.0,
+                is_active=True,
+            )
+            db.add(demo_hospital)
+            db.flush()  # get demo_hospital.id before creating its staff login below
+
+            if not db.query(User).filter(User.role == UserRole.hospital_staff).first():
+                db.add(User(
+                    full_name="Apex Hospital Console",
+                    phone="9800000001",
+                    email="console@apexhospital.example",
+                    hashed_password=hash_password("hospital123"),  # CHANGE IMMEDIATELY in production
+                    role=UserRole.hospital_staff,
+                    hospital_id=demo_hospital.id,
+                ))
+
         if not db.query(User).filter(User.role == UserRole.admin).first():
             db.add(User(
                 full_name="ROSKYRO Admin",
@@ -59,6 +85,7 @@ def run():
 
         db.commit()
         print("Seed complete. Admin login -> phone: 9999999999 / password: admin123 (change this!)")
+        print("Demo Hospital Console login -> phone: 9800000001 / password: hospital123 (change this!)")
 
         # One-time reset hook: if ADMIN_RESET_PHONE / ADMIN_RESET_PASSWORD are set as
         # env vars, overwrite the existing admin's credentials with them. Lets you
