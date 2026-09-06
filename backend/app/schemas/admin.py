@@ -27,7 +27,6 @@ class AdminBookingOut(BaseModel):
     customer_phone: str
     agent_name: Optional[str] = None
     service_name: str
-    hospital_name: Optional[str] = None
     status: BookingStatus
     scheduled_start: datetime
     booked_hours: float

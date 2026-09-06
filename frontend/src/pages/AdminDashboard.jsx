@@ -34,7 +34,6 @@ export default function AdminDashboard() {
   const [services, setServices] = useState([]);
   const [cities, setCities] = useState([]);
   const [team, setTeam] = useState([]);
-  const [hospitals, setHospitals] = useState([]);
   const [tab, setTab] = useState("overview");
   const [loading, setLoading] = useState(false);
 
@@ -82,12 +81,6 @@ export default function AdminDashboard() {
     setTeam(data);
     setLoading(false);
   }
-  async function loadHospitals() {
-    setLoading(true);
-    const { data } = await api.get("/admin/hospitals");
-    setHospitals(data);
-    setLoading(false);
-  }
 
   useEffect(() => { loadStats(); loadAgents(); }, []);
 
@@ -98,8 +91,6 @@ export default function AdminDashboard() {
     if (tab === "services" && services.length === 0) loadServices();
     if (tab === "cities" && cities.length === 0) loadCities();
     if (tab === "team" && team.length === 0) loadTeam();
-    if (tab === "hospitals" && hospitals.length === 0) loadHospitals();
-    if (tab === "hospitals" && cities.length === 0) loadCities();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
 
@@ -189,34 +180,12 @@ export default function AdminDashboard() {
     }
   }
 
-  // --- Hospitals (partners) + their Hospital Console logins ---
-  async function addHospital(payload) {
-    await api.post("/admin/hospitals", payload);
-    loadHospitals();
-  }
-  async function updateHospital(id, payload) {
-    await api.patch(`/admin/hospitals/${id}`, payload);
-    loadHospitals();
-  }
-  async function deleteHospital(id) {
-    if (!window.confirm("Remove this hospital partner? This can't be undone.")) return;
-    try {
-      await api.delete(`/admin/hospitals/${id}`);
-      loadHospitals();
-    } catch (err) {
-      alert(err.response?.data?.detail || "Could not delete this hospital.");
-    }
-  }
-  async function addHospitalStaff(payload) {
-    await api.post("/admin/hospitals/staff", payload);
-  }
-
   return (
     <div className="max-w-6xl mx-auto px-5 py-12">
       <h1 className="font-display text-3xl text-ink mb-8">Admin dashboard</h1>
 
       <div className="flex gap-6 border-b border-ink/10 mb-8 overflow-x-auto">
-        {["overview", "hospitals", "partners", "services", "cities", "team", "customers", "bookings", "complaints"].map((t) => (
+        {["overview", "partners", "services", "cities", "team", "customers", "bookings", "complaints"].map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -239,17 +208,6 @@ export default function AdminDashboard() {
           <Stat label="Active partners" value={stats.agents.active} />
           <Stat label="Partners in pipeline" value={stats.agents.in_pipeline} />
           <Stat label="Priority complaints" value={stats.complaints.priority_open} highlight={stats.complaints.priority_open > 0} />
-        </div>
-      )}
-
-      {tab === "hospitals" && (
-        <div className="space-y-4">
-          <AddHospitalForm onAdd={addHospital} cities={cities} />
-          {loading && <p className="text-ink/50">Loading…</p>}
-          {hospitals.map((h) => (
-            <HospitalRow key={h.id} hospital={h} onUpdate={updateHospital} onDelete={deleteHospital} onAddStaff={addHospitalStaff} />
-          ))}
-          {!loading && hospitals.length === 0 && <p className="text-ink/60">No hospital partners yet.</p>}
         </div>
       )}
 
@@ -843,185 +801,5 @@ function Input({ label, ...props }) {
       {label}
       <input {...props} className="mt-1 w-full text-sm border border-ink/15 rounded-lg px-3 py-2" />
     </label>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Hospitals: add form + row (contract/contact fields + issue Console login)
-// ---------------------------------------------------------------------------
-
-const CONTRACT_STATUS_OPTIONS = ["prospect", "active", "paused", "churned"];
-
-function AddHospitalForm({ onAdd, cities }) {
-  const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({
-    name: "", city_id: "", address: "", contact_name: "", contact_phone: "",
-    contact_email: "", contract_status: "prospect", monthly_contract_amount: "",
-  });
-  const [error, setError] = useState("");
-  const [saving, setSaving] = useState(false);
-
-  function set(field) {
-    return (e) => setForm((f) => ({ ...f, [field]: e.target.value }));
-  }
-
-  async function submit(e) {
-    e.preventDefault();
-    setError("");
-    setSaving(true);
-    try {
-      await onAdd({
-        ...form,
-        city_id: form.city_id ? Number(form.city_id) : null,
-        monthly_contract_amount: form.monthly_contract_amount ? parseFloat(form.monthly_contract_amount) : null,
-      });
-      setForm({ name: "", city_id: "", address: "", contact_name: "", contact_phone: "", contact_email: "", contract_status: "prospect", monthly_contract_amount: "" });
-      setOpen(false);
-    } catch (err) {
-      setError(err.response?.data?.detail || "Could not add hospital.");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  if (!open) {
-    return (
-      <button onClick={() => setOpen(true)} className="text-sm font-semibold px-4 py-2 rounded-full bg-violet text-white">
-        + Add hospital partner
-      </button>
-    );
-  }
-
-  return (
-    <form onSubmit={submit} className="border border-ink/10 rounded-card p-5 grid sm:grid-cols-2 gap-3">
-      <Input label="Hospital name" value={form.name} onChange={set("name")} required />
-      <label className="text-sm text-ink/70">
-        City
-        <select value={form.city_id} onChange={set("city_id")} className="mt-1 w-full text-sm border border-ink/15 rounded-lg px-3 py-2 bg-white">
-          <option value="">— none —</option>
-          {cities.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
-      </label>
-      <Input label="Address" value={form.address} onChange={set("address")} />
-      <Input label="Contact name" value={form.contact_name} onChange={set("contact_name")} />
-      <Input label="Contact phone" value={form.contact_phone} onChange={set("contact_phone")} />
-      <Input label="Contact email" value={form.contact_email} onChange={set("contact_email")} />
-      <label className="text-sm text-ink/70">
-        Contract status
-        <select value={form.contract_status} onChange={set("contract_status")} className="mt-1 w-full text-sm border border-ink/15 rounded-lg px-3 py-2 bg-white">
-          {CONTRACT_STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
-        </select>
-      </label>
-      <Input label="Monthly contract amount (₹)" type="number" value={form.monthly_contract_amount} onChange={set("monthly_contract_amount")} />
-      {error && <p className="sm:col-span-2 text-sm text-clay">{error}</p>}
-      <div className="sm:col-span-2 flex gap-2">
-        <button disabled={saving} className="text-sm font-semibold px-4 py-2 rounded-full bg-violet text-white disabled:opacity-60">
-          {saving ? "Saving…" : "Save hospital"}
-        </button>
-        <button type="button" onClick={() => setOpen(false)} className="text-sm font-semibold px-4 py-2 rounded-full bg-ink/10 text-ink/70">
-          Cancel
-        </button>
-      </div>
-    </form>
-  );
-}
-
-function HospitalRow({ hospital, onUpdate, onDelete, onAddStaff }) {
-  const [showStaffForm, setShowStaffForm] = useState(false);
-
-  return (
-    <div className="border border-ink/10 rounded-card p-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <div className="font-semibold text-ink">{hospital.name}</div>
-          <div className="text-sm text-ink/50">
-            {hospital.city_name || "No city set"} · {hospital.contact_phone || "no contact phone"}
-            {hospital.monthly_contract_amount != null && ` · ₹${hospital.monthly_contract_amount.toFixed(0)}/month`}
-          </div>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className={`text-xs font-semibold px-3 py-1 rounded-full capitalize ${
-            hospital.contract_status === "active" ? "bg-violet/15 text-magenta" : "bg-ink/10 text-ink/50"
-          }`}>
-            {hospital.contract_status}
-          </span>
-          <span className={`text-xs font-semibold px-3 py-1 rounded-full ${hospital.is_active ? "bg-violet/15 text-magenta" : "bg-ink/10 text-ink/50"}`}>
-            {hospital.is_active ? "Live" : "Inactive"}
-          </span>
-          <button
-            onClick={() => onUpdate(hospital.id, { is_active: !hospital.is_active })}
-            className="text-xs font-semibold px-3 py-1.5 rounded-full bg-ink/10 text-ink/60"
-          >
-            {hospital.is_active ? "Mark inactive" : "Mark live"}
-          </button>
-          <button onClick={() => setShowStaffForm((v) => !v)} className="text-xs font-semibold px-3 py-1.5 rounded-full bg-flare/30 text-ink">
-            {showStaffForm ? "Close" : "Issue Console login"}
-          </button>
-          <button onClick={() => onDelete(hospital.id)} className="text-xs font-semibold px-3 py-1.5 rounded-full bg-clay/15 text-clay">
-            Delete
-          </button>
-        </div>
-      </div>
-      {showStaffForm && (
-        <AddHospitalStaffForm hospitalId={hospital.id} onAdd={onAddStaff} onDone={() => setShowStaffForm(false)} />
-      )}
-    </div>
-  );
-}
-
-function AddHospitalStaffForm({ hospitalId, onAdd, onDone }) {
-  const [form, setForm] = useState({ full_name: "", phone: "", email: "", password: "" });
-  const [error, setError] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [done, setDone] = useState(false);
-
-  function set(field) {
-    return (e) => setForm((f) => ({ ...f, [field]: e.target.value }));
-  }
-
-  async function submit(e) {
-    e.preventDefault();
-    setError("");
-    setSaving(true);
-    try {
-      await onAdd({ ...form, hospital_id: hospitalId });
-      setDone(true);
-    } catch (err) {
-      setError(err.response?.data?.detail || "Could not create this login.");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  if (done) {
-    return (
-      <div className="mt-4 border-t border-ink/10 pt-4 text-sm">
-        <p className="text-ink/80 mb-2">
-          Hospital Console login created — share these with the hospital's front desk:
-        </p>
-        <div className="bg-parchment rounded-lg px-4 py-2 inline-block">
-          <div>Phone: <span className="font-semibold">{form.phone}</span></div>
-          <div>Password: <span className="font-semibold">{form.password}</span></div>
-        </div>
-        <div className="mt-2">
-          <button onClick={onDone} className="text-xs font-semibold text-violet">Close</button>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <form onSubmit={submit} className="mt-4 border-t border-ink/10 pt-4 grid sm:grid-cols-2 gap-3">
-      <Input label="Staff / desk name" value={form.full_name} onChange={set("full_name")} required />
-      <Input label="Login phone number" value={form.phone} onChange={set("phone")} required />
-      <Input label="Email (optional)" value={form.email} onChange={set("email")} />
-      <Input label="Temporary password" type="password" value={form.password} onChange={set("password")} required />
-      {error && <p className="sm:col-span-2 text-sm text-clay">{error}</p>}
-      <div className="sm:col-span-2">
-        <button disabled={saving} className="text-sm font-semibold px-4 py-2 rounded-full bg-violet text-white disabled:opacity-60">
-          {saving ? "Creating…" : "Create Console login"}
-        </button>
-      </div>
-    </form>
   );
 }

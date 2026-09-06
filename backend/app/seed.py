@@ -9,7 +9,6 @@ Usage:  python -m app.seed
 from app.db.session import SessionLocal, engine, Base
 from app.models.service import Service
 from app.models.city import City
-from app.models.hospital import Hospital, HospitalContractStatus
 from app.models.user import User, UserRole
 from app.core.security import hash_password
 from app.core.config import settings
@@ -40,6 +39,36 @@ def run():
                     description="Round-the-clock non-medical urgent assistance when something comes up and you need trusted help fast.",
                     hourly_rate=269, display_order=3,
                 ),
+                Service(
+                    name="Hospital Concierge", slug="hospital-concierge", icon="🏥",
+                    short_description="Admission → discharge, attendant coordination",
+                    description="A dedicated concierge who coordinates the full hospital journey — admission formalities, floor-level attendant support, and discharge — so the family always has one point of contact.",
+                    hourly_rate=249, display_order=4,
+                ),
+                Service(
+                    name="Elderly Care Concierge", slug="elderly-care-concierge", icon="👴",
+                    short_description="Hospital visits + appointments + assistance",
+                    description="Ongoing concierge support for seniors — accompanying hospital visits, managing appointment schedules, and general day-to-day assistance.",
+                    hourly_rate=229, display_order=5,
+                ),
+                Service(
+                    name="Medical Travel Concierge", slug="medical-travel-concierge", icon="✈️",
+                    short_description="Outstation patient → city → hospital → stay → treatment → return",
+                    description="End-to-end coordination for patients travelling from outside the city — arrival, hospital coordination, stay arrangements, treatment-day support, and the return journey.",
+                    hourly_rate=349, display_order=6,
+                ),
+                Service(
+                    name="Diagnostic Concierge", slug="diagnostic-concierge", icon="🧪",
+                    short_description="Test booking → centre coordination → report collection",
+                    description="Handles diagnostic test bookings, coordination with the test centre, and collection/delivery of reports — one less thing for the family to chase.",
+                    hourly_rate=179, display_order=7,
+                ),
+                Service(
+                    name="Post-Discharge Concierge", slug="post-discharge-concierge", icon="🏠",
+                    short_description="Hospital → home transition + follow-up coordination",
+                    description="Supports the transition from hospital to home after discharge, including follow-up appointment and medication coordination.",
+                    hourly_rate=209, display_order=8,
+                ),
             ])
 
         if not db.query(City).first():
@@ -48,31 +77,6 @@ def run():
                 City(name="Ranchi", state="Jharkhand", is_live=False),
                 City(name="Lucknow", state="Uttar Pradesh", is_live=False),
             ])
-
-        if not db.query(Hospital).first():
-            live_city = db.query(City).filter(City.is_live == True).first()  # noqa: E712
-            demo_hospital = Hospital(
-                name="Apex Multispecialty Hospital",
-                city_id=live_city.id if live_city else None,
-                address="Ring Road, near City Center",
-                contact_name="Front Office Desk",
-                contact_phone="9800000000",
-                contract_status=HospitalContractStatus.active,
-                monthly_contract_amount=45000.0,
-                is_active=True,
-            )
-            db.add(demo_hospital)
-            db.flush()  # get demo_hospital.id before creating its staff login below
-
-            if not db.query(User).filter(User.role == UserRole.hospital_staff).first():
-                db.add(User(
-                    full_name="Apex Hospital Console",
-                    phone="9800000001",
-                    email="console@apexhospital.example",
-                    hashed_password=hash_password("hospital123"),  # CHANGE IMMEDIATELY in production
-                    role=UserRole.hospital_staff,
-                    hospital_id=demo_hospital.id,
-                ))
 
         if not db.query(User).filter(User.role == UserRole.admin).first():
             db.add(User(
@@ -85,7 +89,6 @@ def run():
 
         db.commit()
         print("Seed complete. Admin login -> phone: 9999999999 / password: admin123 (change this!)")
-        print("Demo Hospital Console login -> phone: 9800000001 / password: hospital123 (change this!)")
 
         # One-time reset hook: if ADMIN_RESET_PHONE / ADMIN_RESET_PASSWORD are set as
         # env vars, overwrite the existing admin's credentials with them. Lets you

@@ -13,13 +13,10 @@ from app.models.service import Service
 from app.models.agent import Agent
 from app.models.booking import Booking, BookingStatus
 from app.models.payment import Payment, PaymentStatus
-from app.models.hospital import Hospital
-from app.models.journey import JourneyStage
 from app.schemas.booking import (
     BookingEstimateIn, BookingEstimateOut, BookingCreateIn, BookingOut,
     BookingWithPinsOut, SubmitStartPinIn, SubmitEndPinIn, AssignAgentIn, SosIn,
 )
-from app.schemas.hospital import JourneyOut, JourneyUpdateOut
 from app.services.pricing import estimate_booking, price_booking
 from app.core.config import settings
 
@@ -56,18 +53,12 @@ def estimate(payload: BookingEstimateIn, db: Session = Depends(get_db)):
 @router.post("", response_model=BookingWithPinsOut)
 def create_booking(payload: BookingCreateIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     _get_service_or_404(db, payload.service_id)
-    if payload.hospital_id is not None:
-        hospital = db.query(Hospital).get(payload.hospital_id)
-        if not hospital or not hospital.is_active:
-            raise HTTPException(status_code=400, detail="Selected hospital is not available")
 
     booking = Booking(
         booking_code=f"RK-{random.randint(10000, 99999)}",
         customer_id=user.id,
         service_id=payload.service_id,
         city_id=payload.city_id,
-        hospital_id=payload.hospital_id,
-        current_stage=JourneyStage.assist_assigned if payload.hospital_id else None,
         address=payload.address,
         contact_on_arrival_name=payload.contact_on_arrival_name,
         contact_on_arrival_phone=payload.contact_on_arrival_phone,
@@ -102,34 +93,6 @@ def get_booking(booking_id: int, db: Session = Depends(get_db), user: User = Dep
     if not booking or booking.customer_id != user.id:
         raise HTTPException(status_code=404, detail="Booking not found")
     return booking
-
-
-@router.get("/{booking_id}/journey", response_model=JourneyOut)
-def get_my_journey(booking_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    """Family-facing 'Family Updates' timeline for one of the customer's own bookings."""
-    booking = db.query(Booking).get(booking_id)
-    if not booking or booking.customer_id != user.id:
-        raise HTTPException(status_code=404, detail="Booking not found")
-    return JourneyOut(
-        id=booking.id,
-        booking_code=booking.booking_code,
-        customer_name=booking.customer.full_name if booking.customer else "—",
-        customer_phone=booking.customer.phone if booking.customer else "—",
-        service_name=booking.service.name if booking.service else "—",
-        hospital_name=booking.hospital.name if booking.hospital else None,
-        status=booking.status.value,
-        current_stage=booking.current_stage,
-        scheduled_start=booking.scheduled_start,
-        agent_name=booking.agent.full_name if booking.agent else None,
-        updates=[
-            JourneyUpdateOut(
-                id=u.id, stage=u.stage, note=u.note,
-                posted_by_name=u.posted_by.full_name if u.posted_by else None,
-                created_at=u.created_at,
-            )
-            for u in booking.journey_updates
-        ],
-    )
 
 
 @router.post("/{booking_id}/assign", response_model=BookingOut)

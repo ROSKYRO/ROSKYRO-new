@@ -10,17 +10,10 @@ from slowapi.middleware import SlowAPIMiddleware
 from app.core.config import settings
 from app.core.limiter import limiter
 from app.db.session import Base, engine
-from app.db.migrate import sync_missing_columns
-from app.routers import auth, services, bookings, agents, misc, admin, hospitals
+from app.routers import auth, services, bookings, agents, misc, admin
 
 # Auto-create tables on boot for simplicity (swap for Alembic migrations in production).
 Base.metadata.create_all(bind=engine)
-
-# create_all() above only creates brand-new tables — it does NOT add new
-# columns to tables that already exist in the database (e.g. `users` was
-# created before `hospital_id` was added to the model). This adds any
-# missing columns so model changes don't crash the app on deploy.
-sync_missing_columns(engine, Base)
 
 app = FastAPI(
     title=f"{settings.APP_NAME} API",
@@ -48,8 +41,6 @@ app.include_router(bookings.router, prefix="/api")
 app.include_router(agents.router, prefix="/api")
 app.include_router(misc.router, prefix="/api")
 app.include_router(admin.router, prefix="/api")
-app.include_router(hospitals.public_router, prefix="/api")
-app.include_router(hospitals.router, prefix="/api")
 
 
 @app.on_event("startup")

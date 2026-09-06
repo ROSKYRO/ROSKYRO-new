@@ -1,5 +1,5 @@
 const STEPS = [
-  { title: "Choose a service", desc: "Hospital Assist, Elder Companion Care, or 24x7 Urgent Support — pick what you need and when." },
+  { title: "Choose a service", desc: "Hospital Assist, Elder Companion Care, 24x7 Urgent Support, Hospital Concierge, Elderly Care Concierge, Medical Travel Concierge, Diagnostic Concierge, or Post-Discharge Concierge — pick what you need and when." },
   { title: "Tell us the details", desc: "Address, date, time, and who the Partner should contact on arrival." },
   { title: "We match a verified Partner", desc: "A background-verified Partner near you is assigned. You get their name and photo in advance." },
   { title: "Start PIN begins billing", desc: "Your Partner arrives with photo ID. Share the Start PIN only when they're at your door — that's when the clock starts." },

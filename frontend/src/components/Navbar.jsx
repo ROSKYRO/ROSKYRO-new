@@ -22,9 +22,8 @@ export default function Navbar() {
   // short, app-style nav instead of the long marketing anchor list — the
   // marketing links only make sense on the logged-out landing page.
   const loggedInLinks = [
-    ...(user?.role === "customer" ? [{ to: "/my-bookings", label: "My bookings" }] : []),
+    { to: "/my-bookings", label: "My bookings" },
     ...(user?.role === "admin" ? [{ to: "/admin", label: "Admin" }] : []),
-    ...(user?.role === "hospital_staff" ? [{ to: "/hospital/dashboard", label: "Hospital Console" }] : []),
   ];
 
   return (

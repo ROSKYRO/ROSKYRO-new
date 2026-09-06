@@ -24,13 +24,6 @@ export function AuthProvider({ children }) {
     return data;
   }, []);
 
-  const hospitalLogin = useCallback(async (phone, password) => {
-    // Hospital Console session — fully separate from customer/admin auth.
-    const { data } = await api.post("/hospital-console/auth/login", { phone, password });
-    persist(data);
-    return data;
-  }, []);
-
   const signup = useCallback(async (payload) => {
     const { data } = await api.post("/auth/signup", payload);
     persist(data);
@@ -51,7 +44,7 @@ export function AuthProvider({ children }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, login, adminLogin, hospitalLogin, signup, logout }}>
+    <AuthContext.Provider value={{ user, login, adminLogin, signup, logout }}>
       {children}
     </AuthContext.Provider>
   );

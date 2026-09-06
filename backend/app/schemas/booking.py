@@ -3,7 +3,6 @@ from typing import Optional
 from datetime import datetime
 
 from app.models.booking import BookingStatus
-from app.models.journey import JourneyStage
 
 
 class BookingEstimateIn(BaseModel):
@@ -34,7 +33,6 @@ class BookingCreateIn(BaseModel):
     distance_km: float = 0.0
     ends_at_different_location: bool = False
     city_id: Optional[int] = None
-    hospital_id: Optional[int] = None  # which partner hospital this journey is for, if any
 
 
 class BookingOut(BaseModel):
@@ -42,8 +40,6 @@ class BookingOut(BaseModel):
     booking_code: str
     service_id: int
     agent_id: Optional[int]
-    hospital_id: Optional[int] = None
-    current_stage: Optional[JourneyStage] = None
     address: str
     contact_on_arrival_name: Optional[str]
     contact_on_arrival_phone: Optional[str]

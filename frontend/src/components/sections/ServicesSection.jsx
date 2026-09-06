@@ -14,7 +14,7 @@ export default function ServicesSection() {
       <span className="text-xs font-semibold tracking-wide text-magenta">Meet the Partners</span>
       <h2 className="font-display text-3xl text-ink mt-3 mb-3">A trusted name for every kind of help.</h2>
       <p className="text-ink/60 mb-10 max-w-2xl">
-        Three services live in our INDIA pilot today, with more on the way. Pricing is simple and
+        Eight services live in our INDIA pilot today, with more on the way. Pricing is simple and
         published — pay only after the service.
       </p>
 
