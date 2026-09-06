@@ -45,8 +45,8 @@ app.include_router(admin.router, prefix="/api")
 
 @app.on_event("startup")
 def seed_on_boot():
-    # Populates services/cities/admin login on first boot only (seed.run() checks
-    # for existing rows before inserting, so this is safe to leave on every deploy).
+    # Populates cities/admin login on first boot only, and upserts any new
+    # services (by slug) on every boot — safe to leave on for every deploy.
     if settings.AUTO_SEED:
         from app.seed import run as run_seed
         run_seed()
