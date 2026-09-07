@@ -23,7 +23,6 @@ export default function Navbar() {
   // marketing links only make sense on the logged-out landing page.
   const loggedInLinks = [
     { to: "/my-bookings", label: "My bookings" },
-    { to: "/blog", label: "Blog" },
     ...(user?.role === "admin" ? [{ to: "/admin", label: "Admin" }] : []),
   ];
 
@@ -42,9 +41,6 @@ export default function Navbar() {
                 {l.label}
               </a>
             ))}
-            <Link to="/blog" className="text-sm font-medium text-ink/70 hover:text-violet transition-colors whitespace-nowrap">
-              Blog
-            </Link>
           </nav>
         )}
 
@@ -91,11 +87,6 @@ export default function Navbar() {
               {l.label}
             </a>
           ))}
-          {!user && (
-            <Link to="/blog" onClick={() => setOpen(false)} className="text-sm font-medium text-ink/70 hover:text-violet">
-              Blog
-            </Link>
-          )}
           <a
             href={BOOK_WA_LINK}
             target="_blank"

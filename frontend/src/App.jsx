@@ -11,8 +11,6 @@ import Services from "./pages/Services";
 import MyBookings from "./pages/MyBookings";
 import BecomePartner from "./pages/BecomePartner";
 import HowItWorks from "./pages/HowItWorks";
-import Blog from "./pages/Blog";
-import BlogPost from "./pages/BlogPost";
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminLogin from "./pages/AdminLogin";
 
@@ -28,8 +26,6 @@ export default function App() {
           <Route path="/services" element={<Services />} />
           <Route path="/how-it-works" element={<HowItWorks />} />
           <Route path="/become-a-partner" element={<BecomePartner />} />
-          <Route path="/blog" element={<Blog />} />
-          <Route path="/blog/:slug" element={<BlogPost />} />
           <Route path="/my-bookings" element={<RequireAuth><MyBookings /></RequireAuth>} />
           {/* Not linked from Navbar/anywhere on purpose — reachable only if you know the URL. */}
           <Route path={ADMIN_LOGIN_PATH} element={<AdminLogin />} />
