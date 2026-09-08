@@ -59,8 +59,10 @@ the navbar. Wiring a real WhatsApp Business API bot is listed under
 
 ## Core business logic implemented
 
-- **Service catalogue** with published hourly rates (seeded: Hospital Assist ₹219/hr, Elder
-  Companion Care ₹199/hr, 24×7 Urgent Support ₹269/hr — edit freely in the admin API).
+- **Service catalogue** with published hourly rates (seeded: 24×7 Urgent Support ₹269/hr,
+  Hospital Concierge ₹249/hr, Elderly Care Concierge ₹229/hr, Medical Travel Concierge
+  ₹349/hr, Diagnostic Concierge ₹179/hr, Post-Discharge Concierge ₹209/hr — edit freely in
+  the admin API).
 - **6-step Partner verification pipeline**: ID, police/background check, references,
   interview, training, photo ID issuance — tracked as discrete checkboxes so admins see
   exactly where each applicant is stuck.
