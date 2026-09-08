@@ -1,99 +1,164 @@
-import { useEffect } from "react";
-import { useParams, Link } from "react-router-dom";
-import ReactMarkdown from "react-markdown";
-import { getPostBySlug } from "../content/blog/manifest.js";
-
-// Loads every post body as raw markdown text, keyed by file path, at build time.
-const rawPosts = import.meta.glob("../content/blog/*.md", {
-  eager: true,
-  query: "?raw",
-  import: "default",
-});
-
-function getBody(slug) {
-  const entry = Object.entries(rawPosts).find(([path]) => path.endsWith(`/${slug}.md`));
-  return entry ? entry[1] : "";
-}
-
-// Tailwind-styled renderers so posts look right without the typography plugin.
-const markdownComponents = {
-  h1: (props) => <h1 className="font-display text-3xl text-ink mt-2 mb-6" {...props} />,
-  h2: (props) => <h2 className="font-display text-2xl text-ink mt-10 mb-4" {...props} />,
-  h3: (props) => <h3 className="font-display text-xl text-ink mt-8 mb-3" {...props} />,
-  p: (props) => <p className="text-ink/80 leading-relaxed mb-4" {...props} />,
-  a: (props) => <a className="text-violet font-medium hover:text-magenta underline underline-offset-2" {...props} />,
-  ul: (props) => <ul className="list-disc pl-6 mb-4 space-y-1 text-ink/80" {...props} />,
-  ol: (props) => <ol className="list-decimal pl-6 mb-4 space-y-1 text-ink/80" {...props} />,
-  li: (props) => <li className="leading-relaxed" {...props} />,
-  strong: (props) => <strong className="text-ink font-semibold" {...props} />,
-  img: (props) => (
-    <img className="w-full rounded-card my-6 border border-ink/10" loading="lazy" {...props} />
-  ),
-  hr: () => <hr className="my-10 border-ink/10" />,
-  blockquote: (props) => (
-    <blockquote className="border-l-4 border-violet/30 pl-4 italic text-ink/70 my-6" {...props} />
-  ),
-};
+import { Link, useParams, Navigate } from "react-router-dom";
+import { getPostBySlug, getRelatedPosts } from "../data/blogPosts";
+import useSEO, { SITE_URL } from "../hooks/useSEO";
+import { BOOK_WA_LINK } from "../config";
 
 export default function BlogPost() {
   const { slug } = useParams();
   const post = getPostBySlug(slug);
-  const body = post ? getBody(slug) : "";
 
-  useEffect(() => {
-    if (post) {
-      document.title = post.metaTitle;
-      let tag = document.querySelector('meta[name="description"]');
-      if (!tag) {
-        tag = document.createElement("meta");
-        tag.setAttribute("name", "description");
-        document.head.appendChild(tag);
+  // Hooks must run unconditionally, so compute a safe fallback for useSEO's
+  // inputs when the post doesn't exist, then redirect after.
+  const related = post ? getRelatedPosts(post.slug) : [];
+
+  const jsonLd = post
+    ? {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "BlogPosting",
+            headline: post.title,
+            description: post.metaDescription,
+            image: `${SITE_URL}/brand/logo.png`,
+            author: { "@type": "Organization", name: "ROSKYRO" },
+            publisher: {
+              "@type": "Organization",
+              name: "ROSKYRO",
+              logo: { "@type": "ImageObject", url: `${SITE_URL}/brand/logo.png` },
+            },
+            mainEntityOfPage: `${SITE_URL}/blog/${post.slug}`,
+          },
+          {
+            "@type": "Service",
+            name: post.name,
+            serviceType: post.category,
+            provider: { "@type": "Organization", name: "ROSKYRO" },
+            areaServed: "IN",
+            ...(post.hourly_rate
+              ? {
+                  offers: {
+                    "@type": "Offer",
+                    priceCurrency: "INR",
+                    price: post.hourly_rate,
+                    unitText: "HOUR",
+                  },
+                }
+              : {}),
+          },
+          {
+            "@type": "BreadcrumbList",
+            itemListElement: [
+              { "@type": "ListItem", position: 1, name: "Home", item: SITE_URL },
+              { "@type": "ListItem", position: 2, name: "Blog", item: `${SITE_URL}/blog` },
+              { "@type": "ListItem", position: 3, name: post.name, item: `${SITE_URL}/blog/${post.slug}` },
+            ],
+          },
+          {
+            "@type": "FAQPage",
+            mainEntity: post.faqs.map((f) => ({
+              "@type": "Question",
+              name: f.q,
+              acceptedAnswer: { "@type": "Answer", text: f.a },
+            })),
+          },
+        ],
       }
-      tag.setAttribute("content", post.metaDescription);
-    }
-  }, [post]);
+    : null;
+
+  useSEO({
+    title: post ? post.metaTitle : undefined,
+    description: post ? post.metaDescription : undefined,
+    path: post ? `/blog/${post.slug}` : undefined,
+    type: "article",
+    jsonLd,
+  });
 
   if (!post) {
-    return (
-      <div className="max-w-2xl mx-auto px-5 py-24 text-center">
-        <h1 className="font-display text-3xl text-ink mb-4">Post not found</h1>
-        <p className="text-ink/60 mb-6">This blog post doesn't exist or may have moved.</p>
-        <Link to="/blog" className="text-violet font-semibold">← Back to Blog</Link>
-      </div>
-    );
+    return <Navigate to="/blog" replace />;
   }
 
-  const faqSchema =
-    post.faqs && post.faqs.length
-      ? {
-          "@context": "https://schema.org",
-          "@type": "FAQPage",
-          mainEntity: post.faqs.map((f) => ({
-            "@type": "Question",
-            name: f.q,
-            acceptedAnswer: { "@type": "Answer", text: f.a },
-          })),
-        }
-      : null;
-
   return (
-    <article className="max-w-3xl mx-auto px-5 py-14">
-      <Link to="/blog" className="text-sm font-medium text-ink/50 hover:text-violet">
-        ← All services
-      </Link>
+    <div className="max-w-3xl mx-auto px-5 py-16">
+      {/* Breadcrumb */}
+      <nav className="text-xs text-ink/40 mb-6" aria-label="Breadcrumb">
+        <Link to="/" className="hover:text-violet">Home</Link>
+        <span className="mx-2">/</span>
+        <Link to="/blog" className="hover:text-violet">Blog</Link>
+        <span className="mx-2">/</span>
+        <span className="text-ink/60">{post.name}</span>
+      </nav>
 
-      <div className="mt-6">
-        <ReactMarkdown components={markdownComponents}>{body}</ReactMarkdown>
+      <span className="text-xs font-semibold tracking-wide text-magenta">{post.category}</span>
+      <h1 className="font-display text-3xl sm:text-4xl text-ink mt-3 mb-3">{post.title}</h1>
+      <p className="text-ink/60 text-lg mb-6">{post.heroTagline}</p>
+
+      <div className="flex items-center gap-4 text-xs text-ink/40 mb-10 pb-6 border-b border-ink/10">
+        <span className="text-2xl">{post.icon}</span>
+        <span>{post.readTime}</span>
+        {post.hourly_rate && (
+          <span className="font-semibold text-ink/60">From ₹{post.hourly_rate}/hr</span>
+        )}
       </div>
 
-      {faqSchema && (
-        // Structured data for FAQ rich results — safe: content is built entirely
-        // from this file's own known-good manifest data, never user input.
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
-        />
+      {/* Article body */}
+      <article className="prose-none space-y-8">
+        {post.sections.map((s) => (
+          <section key={s.heading}>
+            <h2 className="font-display text-xl text-ink mb-3">{s.heading}</h2>
+            <p className="text-ink/70 leading-relaxed">{s.body}</p>
+          </section>
+        ))}
+      </article>
+
+      {/* CTA */}
+      <div className="bg-violet text-parchment rounded-card p-6 my-12 text-center">
+        <div className="font-display text-lg mb-2">Book {post.name} on WhatsApp</div>
+        <p className="text-parchment/70 text-sm mb-4">
+          Verified Partner, transparent pricing, pay after the visit — no advance payment.
+        </p>
+        <a
+          href={BOOK_WA_LINK}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-block px-6 py-3 rounded-full bg-parchment text-ink font-semibold hover:opacity-90 transition-opacity"
+        >
+          Book now
+        </a>
+      </div>
+
+      {/* FAQs */}
+      <section className="mb-12">
+        <h2 className="font-display text-2xl text-ink mb-6">Frequently asked questions</h2>
+        <div className="space-y-5">
+          {post.faqs.map((f) => (
+            <div key={f.q} className="border-b border-ink/10 pb-5">
+              <div className="font-semibold text-ink mb-2">{f.q}</div>
+              <div className="text-sm text-ink/60 leading-relaxed">{f.a}</div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Related posts */}
+      {related.length > 0 && (
+        <section>
+          <h2 className="font-display text-xl text-ink mb-5">Other ROSKYRO services</h2>
+          <div className="grid sm:grid-cols-3 gap-4">
+            {related.map((r) => (
+              <Link
+                key={r.slug}
+                to={`/blog/${r.slug}`}
+                className="group bg-parchment border border-ink/10 rounded-card p-4 hover:border-violet transition-colors"
+              >
+                <div className="text-2xl mb-2">{r.icon}</div>
+                <div className="font-semibold text-sm text-ink group-hover:text-violet transition-colors">
+                  {r.name}
+                </div>
+              </Link>
+            ))}
+          </div>
+        </section>
       )}
-    </article>
+    </div>
   );
 }

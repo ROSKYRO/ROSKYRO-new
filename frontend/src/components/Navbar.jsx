@@ -13,6 +13,11 @@ const NAV_LINKS = [
   { href: "/#join", label: "Become a Partner" },
 ];
 
+// Real routes (not landing-page anchors) that should stay visible for both
+// logged-out visitors and logged-in users, using <Link> so client-side
+// routing (and this page's SEO tags) work correctly.
+const ROUTE_LINKS = [{ to: "/blog", label: "Blog" }];
+
 export default function Navbar() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -41,11 +46,21 @@ export default function Navbar() {
                 {l.label}
               </a>
             ))}
+            {ROUTE_LINKS.map((l) => (
+              <Link key={l.to} to={l.to} className="text-sm font-medium text-ink/70 hover:text-violet transition-colors whitespace-nowrap">
+                {l.label}
+              </Link>
+            ))}
           </nav>
         )}
 
         {user && (
           <nav className="hidden lg:flex items-center gap-5">
+            {ROUTE_LINKS.map((l) => (
+              <Link key={l.to} to={l.to} className="text-sm font-medium text-ink/70 hover:text-violet transition-colors">
+                {l.label}
+              </Link>
+            ))}
             {loggedInLinks.map((l) => (
               <Link key={l.to} to={l.to} className="text-sm font-medium text-ink/70 hover:text-violet transition-colors">
                 {l.label}
@@ -86,6 +101,11 @@ export default function Navbar() {
             <a key={l.label} href={l.href} onClick={() => setOpen(false)} className="text-sm font-medium text-ink/70 hover:text-violet">
               {l.label}
             </a>
+          ))}
+          {ROUTE_LINKS.map((l) => (
+            <Link key={l.to} to={l.to} onClick={() => setOpen(false)} className="text-sm font-medium text-ink/70 hover:text-violet">
+              {l.label}
+            </Link>
           ))}
           <a
             href={BOOK_WA_LINK}

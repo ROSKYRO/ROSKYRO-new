@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import api from "../../api/client";
 import { BOOK_WA_LINK, CALL_TEL_LINK, SUPPORT_PHONE_DISPLAY } from "../../config";
+import { getPostBySlug } from "../../data/blogPosts";
 
 export default function ServicesSection() {
   const [services, setServices] = useState([]);
@@ -33,6 +35,14 @@ export default function ServicesSection() {
             >
               Book now
             </a>
+            {getPostBySlug(s.slug) && (
+              <Link
+                to={`/blog/${s.slug}`}
+                className="text-center mt-2 text-xs font-semibold text-violet hover:text-magenta transition-colors"
+              >
+                Read the full guide →
+              </Link>
+            )}
           </div>
         ))}
         {services.length === 0 && (

@@ -16,12 +16,29 @@ import ComplaintSection from "../components/sections/ComplaintSection";
 import TermsSection from "../components/sections/TermsSection";
 import PrivacySection from "../components/sections/PrivacySection";
 import FinalCtaSection from "../components/sections/FinalCtaSection";
+import useSEO, { SITE_URL } from "../hooks/useSEO";
+import { SUPPORT_EMAIL, PILOT_CITY, PILOT_STATE } from "../config";
 
 // Home is the full one-page marketing site — mirrors the reference site's
 // section-per-anchor structure (#services, #story, #how, #demo, #trust, #faq,
 // #join) plus the supporting sections (audience, city waitlist, app-coming-soon,
 // investor, complaint intake, terms, privacy) that round out the same flow.
 export default function Home() {
+  useSEO({
+    path: "/",
+    jsonLd: {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      name: "ROSKYRO",
+      url: SITE_URL,
+      logo: `${SITE_URL}/brand/logo.png`,
+      email: SUPPORT_EMAIL,
+      areaServed: `${PILOT_CITY}, ${PILOT_STATE}`,
+      description:
+        "Background-verified, trained care partners for elder care, hospital assistance, urgent support, medical travel and diagnostics.",
+    },
+  });
+
   return (
     <div>
       <LaunchBanner />
