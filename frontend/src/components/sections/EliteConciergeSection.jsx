@@ -5,16 +5,41 @@ import { BOOK_WA_LINK, BRAND } from "../../config";
 // rest of the page (violet/magenta/flare palette, font-display headings,
 // rounded-card panels) but framed as a top-tier, "business class" hospital
 // experience for members who want white-glove handling of an entire visit.
+// No prices are shown anywhere in this section by design — every tier and
+// every perk routes to the same WhatsApp inquiry CTA used for bookings.
 
 const PERKS = [
   { icon: "⏱️", title: "Zero Waiting Time", desc: "Priority slots at partner hospitals — appointments, diagnostics and consultations without queueing." },
-  { icon: "🛋️", title: "Private Lounge Access", desc: "A quiet, comfortable space to wait or recover, away from crowded hospital corridors." },
-  { icon: "🗓️", title: "Appointment Management", desc: "We book every appointment and handle payment/billing coordination on your behalf." },
+  { icon: "🧾", title: "Insurance & Claim Assistance", desc: "We handle claim paperwork end to end with your insurer/TPA, so approvals don't stall your discharge." },
+  { icon: "🛏️", title: "Admission-to-Discharge Escort", desc: "A dedicated concierge stays with your case from admission through discharge and settlement." },
+  { icon: "🪑", title: "Priority Waiting Area", desc: "A calmer, faster-moving space to wait at partner hospitals, instead of a crowded general queue." },
+  { icon: "🗓️", title: "Appointment Management", desc: "We book every appointment and coordinate billing on your behalf." },
   { icon: "🚗", title: "Pick-up & Drop-off", desc: "Door-to-hospital-to-door transport arranged for every visit." },
+  { icon: "🧪", title: "Diagnostics at Home", desc: "Sample collection at your doorstep, with reports fast-tracked back to you." },
   { icon: "💊", title: "Medicine Delivery", desc: "Prescriptions sourced and delivered straight to your home." },
   { icon: "🧑‍⚕️", title: "Bystander Support", desc: "A trained companion for attendants, so no family member has to manage the visit alone." },
-  { icon: "🍽️", title: "Meals & Refreshments", desc: "Meals and beverages arranged during long hospital stays or waits." },
   { icon: "💻", title: "Online Doctor Access", desc: "Virtual consultations on demand, for follow-ups that don't need a hospital trip." },
+  { icon: "🌐", title: "Multilingual Support", desc: "Assistance in Hindi, English and regional languages, so nothing gets lost at the hospital desk." },
+  { icon: "📲", title: "Family Updates Dashboard", desc: "Live status shared with family over WhatsApp — built for out-of-station and NRI relatives." },
+  { icon: "🩺", title: "Second Opinion Coordination", desc: "We arrange a second opinion with a partner specialist when a major decision is on the table." },
+];
+
+const TIERS = [
+  {
+    name: "Elite Pass",
+    tagline: "For an occasional hospital visit",
+    desc: "One-time coverage for a single admission-to-discharge episode — concierge escort, priority appointment and pickup-drop included.",
+  },
+  {
+    name: "Elite Membership",
+    tagline: "Individual or Family (up to 4, incl. parents)",
+    desc: "Annual coverage for regular or elderly-care needs — full perks list, unlimited episodes, priority access across partner hospitals.",
+  },
+  {
+    name: "NRI Care Plan",
+    tagline: "For family abroad, parents in India",
+    desc: "Everything in Elite Membership plus the Family Updates Dashboard, so you stay informed from anywhere in the world.",
+  },
 ];
 
 export default function EliteConciergeSection() {
@@ -28,7 +53,7 @@ export default function EliteConciergeSection() {
         <p className="text-ink/60 mb-10 max-w-2xl">
           For members who want an entire hospital visit handled end to end — not just an hour of
           help. One membership, priority access, and a dedicated concierge managing every detail
-          of the journey.
+          of the journey, including the insurance paperwork.
         </p>
 
         <div className="grid sm:grid-cols-2 md:grid-cols-4 gap-6 mb-10">
@@ -41,23 +66,29 @@ export default function EliteConciergeSection() {
           ))}
         </div>
 
-        <div className="bg-ink text-parchment rounded-card p-8 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
-          <div>
-            <div className="font-display text-xl mb-1">Elite Membership</div>
-            <p className="text-sm text-parchment/60 max-w-md">
-              Annual membership covering concierge access, priority appointments, capped
-              complimentary transport and family coverage options. Pricing shared on inquiry.
-            </p>
-          </div>
-          <a
-            href={BOOK_WA_LINK}
-            target="_blank"
-            rel="noreferrer"
-            className="whitespace-nowrap text-center px-6 py-3 rounded-full bg-brand-gradient text-white text-sm font-semibold hover:opacity-90 transition-opacity"
-          >
-            Request Membership
-          </a>
+        <div className="grid md:grid-cols-3 gap-6 mb-6">
+          {TIERS.map((t) => (
+            <div key={t.name} className="bg-ink text-parchment rounded-card p-6 flex flex-col">
+              <div className="font-display text-lg mb-1">{t.name}</div>
+              <div className="text-xs text-magenta font-semibold mb-3">{t.tagline}</div>
+              <p className="text-sm text-parchment/60 leading-relaxed mb-6 flex-1">{t.desc}</p>
+              <a
+                href={BOOK_WA_LINK}
+                target="_blank"
+                rel="noreferrer"
+                className="text-center px-4 py-2 rounded-full bg-brand-gradient text-white text-sm font-semibold hover:opacity-90 transition-opacity"
+              >
+                Inquire on WhatsApp
+              </a>
+            </div>
+          ))}
         </div>
+
+        <p className="text-sm text-ink/50 max-w-3xl">
+          Meals and beverages during hospital stays are included as a standard courtesy across all
+          Elite tiers. Membership pricing is shared on inquiry — message us on WhatsApp and a
+          concierge will confirm the right plan for your city and family size.
+        </p>
       </div>
     </section>
   );
