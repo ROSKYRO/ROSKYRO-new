@@ -8,8 +8,8 @@ import { BOOK_WA_LINK } from "../../config";
 const SCRIPT = [
   { from: "user", text: "Hi" },
   { from: "bot", text: "Namaste! 👋 Welcome to ROSKYRO. Reply in English, Hindi or भोजपुरी — any language works. What do you need help with today?" },
-  { from: "user", text: "Hospital Assist for my father, tomorrow morning" },
-  { from: "bot", text: "Got it — Hospital Assist, ₹219/hr. What time tomorrow, and which hospital?" },
+  { from: "user", text: "Hospital Concierge for my father, tomorrow morning" },
+  { from: "bot", text: "Got it — Hospital Concierge, ₹249/hr. What time tomorrow, and which hospital?" },
   { from: "user", text: "9 AM, PMCH" },
   { from: "bot", text: "Perfect. Share the address and a contact number for our Partner to reach on arrival." },
   { from: "user", text: "[shares address & number]" },
@@ -52,7 +52,7 @@ export default function DemoSection() {
           <h2 className="font-display text-3xl text-ink mt-3 mb-4">Watch a booking — or try it yourself.</h2>
           <p className="text-ink/60 mb-6 max-w-md">
             No app to download, no forms to fill. Just a chat — in your language. Press{" "}
-            <strong>Play</strong> to watch a Hospital Assist booking, or tap <strong>Try it live</strong>{" "}
+            <strong>Play</strong> to watch a Hospital Concierge booking, or tap <strong>Try it live</strong>{" "}
             to book one yourself on WhatsApp.
           </p>
           <ul className="space-y-2 text-sm text-ink/70 mb-8">
