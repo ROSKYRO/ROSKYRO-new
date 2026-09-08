@@ -4,7 +4,7 @@ from app.db.session import Base
 
 
 class Service(Base):
-    """A bookable service line (e.g. Hospital Assist, Elder Care, Urgent Assist)."""
+    """A bookable service line (e.g. Hospital Concierge, Elderly Care Concierge, 24x7 Urgent Support)."""
     __tablename__ = "services"
 
     id = Column(Integer, primary_key=True, index=True)

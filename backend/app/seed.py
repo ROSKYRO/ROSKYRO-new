@@ -23,54 +23,49 @@ Base.metadata.create_all(bind=engine)
 
 SERVICES = [
     dict(
-        name="Hospital Assist", slug="hospital-assist", icon="🏥",
-        short_description="OPD visits, admission paperwork, attendant support",
-        description="A trained companion for OPD queues, admission formalities, and hospital-floor support so your family isn't navigating it alone.",
-        hourly_rate=219, display_order=1,
-    ),
-    dict(
-        name="Elder Companion Care", slug="elder-companion-care", icon="🤝",
-        short_description="Companionship & daily support for seniors",
-        description="Day-to-day companionship, light assistance, and a reassuring presence for elderly family members living alone.",
-        hourly_rate=199, display_order=2,
-    ),
-    dict(
         name="24x7 Urgent Support", slug="urgent-support", icon="🆘",
         short_description="Non-medical urgent help, any hour",
         description="Round-the-clock non-medical urgent assistance when something comes up and you need trusted help fast.",
-        hourly_rate=269, display_order=3,
+        hourly_rate=269, display_order=1,
     ),
     dict(
         name="Hospital Concierge", slug="hospital-concierge", icon="🏥",
         short_description="Admission → discharge, attendant coordination",
         description="A dedicated concierge who coordinates the full hospital journey — admission formalities, floor-level attendant support, and discharge — so the family always has one point of contact.",
-        hourly_rate=249, display_order=4,
+        hourly_rate=249, display_order=2,
     ),
     dict(
         name="Elderly Care Concierge", slug="elderly-care-concierge", icon="👴",
         short_description="Hospital visits + appointments + assistance",
         description="Ongoing concierge support for seniors — accompanying hospital visits, managing appointment schedules, and general day-to-day assistance.",
-        hourly_rate=229, display_order=5,
+        hourly_rate=229, display_order=3,
     ),
     dict(
         name="Medical Travel Concierge", slug="medical-travel-concierge", icon="✈️",
         short_description="Outstation patient → city → hospital → stay → treatment → return",
         description="End-to-end coordination for patients travelling from outside the city — arrival, hospital coordination, stay arrangements, treatment-day support, and the return journey.",
-        hourly_rate=349, display_order=6,
+        hourly_rate=349, display_order=4,
     ),
     dict(
         name="Diagnostic Concierge", slug="diagnostic-concierge", icon="🧪",
         short_description="Test booking → centre coordination → report collection",
         description="Handles diagnostic test bookings, coordination with the test centre, and collection/delivery of reports — one less thing for the family to chase.",
-        hourly_rate=179, display_order=7,
+        hourly_rate=179, display_order=5,
     ),
     dict(
         name="Post-Discharge Concierge", slug="post-discharge-concierge", icon="🏠",
         short_description="Hospital → home transition + follow-up coordination",
         description="Supports the transition from hospital to home after discharge, including follow-up appointment and medication coordination.",
-        hourly_rate=209, display_order=8,
+        hourly_rate=209, display_order=6,
     ),
 ]
+
+# Slugs that used to be seeded but are no longer part of the live catalogue.
+# We don't hard-delete them (a booking may reference the row), we just flip
+# is_active off so GET /services (and therefore the site) stops showing them —
+# same effect as an admin clicking "Deactivate" in the dashboard, but applied
+# automatically on boot for every environment.
+RETIRED_SLUGS = {"hospital-assist", "elder-companion-care"}
 
 
 def run():
@@ -84,6 +79,16 @@ def run():
                 added += 1
         if added:
             print(f"Seed: added {added} new service(s).")
+
+        retired = (
+            db.query(Service)
+            .filter(Service.slug.in_(RETIRED_SLUGS), Service.is_active == True)  # noqa: E712
+            .all()
+        )
+        for s in retired:
+            s.is_active = False
+        if retired:
+            print(f"Seed: deactivated {len(retired)} retired service(s).")
 
         if not db.query(City).first():
             db.add_all([
