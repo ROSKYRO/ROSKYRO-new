@@ -1,6 +1,7 @@
 import LaunchBanner from "../components/sections/LaunchBanner";
 import Hero from "../components/sections/Hero";
 import ServicesSection from "../components/sections/ServicesSection";
+import EliteConciergeSection from "../components/sections/EliteConciergeSection";
 import StorySection from "../components/sections/StorySection";
 import TrustSection from "../components/sections/TrustSection";
 import PromiseSection from "../components/sections/PromiseSection";
@@ -44,6 +45,7 @@ export default function Home() {
       <LaunchBanner />
       <Hero />
       <ServicesSection />
+      <EliteConciergeSection />
       <StorySection />
       <TrustSection />
       <PromiseSection />

@@ -5,6 +5,7 @@ import { BOOK_WA_LINK } from "../config";
 
 const NAV_LINKS = [
   { href: "/#services", label: "Services" },
+  { href: "/#elite", label: "Elite" },
   { href: "/#story", label: "Our story" },
   { href: "/#how", label: "How it works" },
   { href: "/#demo", label: "Live demo" },
