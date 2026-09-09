@@ -83,3 +83,36 @@ class TeamMemberUpdateIn(BaseModel):
     role: Optional[str] = Field(default=None, pattern="^(admin|support)$")
     is_active: Optional[bool] = None
     password: Optional[str] = Field(default=None, min_length=6)
+
+
+class AdminMembershipOut(BaseModel):
+    id: int
+    member_code: str
+    plan: str
+    status: str
+    monthly_price_snapshot: float
+    started_at: datetime
+    next_billing_date: Optional[datetime] = None
+    customer_name: str
+    customer_phone: str
+    family_member_count: int
+
+    class Config:
+        from_attributes = True
+
+
+class AdminMembershipStatusIn(BaseModel):
+    status: str = Field(..., pattern="^(pending|active|paused|cancelled|expired)$")
+
+
+class AdminInvoiceOut(BaseModel):
+    id: int
+    membership_id: int
+    period_start: datetime
+    period_end: datetime
+    amount: float
+    status: str
+    paid_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True

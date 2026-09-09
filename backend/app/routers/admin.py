@@ -17,9 +17,13 @@ from app.models.payment import Payment, PaymentStatus
 from app.models.complaint import Complaint, ComplaintStatus
 from app.models.service import Service
 from app.models.city import City
+from app.models.membership import (
+    Membership, MembershipStatus, FamilyMember, MembershipInvoice, InvoiceStatus,
+)
 from app.schemas.admin import (
     CustomerOut, AdminBookingOut, ComplaintOut, ComplaintUpdateIn,
     TeamMemberOut, TeamMemberCreateIn, TeamMemberUpdateIn,
+    AdminMembershipOut, AdminMembershipStatusIn, AdminInvoiceOut,
 )
 from app.schemas.auth import LoginIn, TokenOut
 from app.schemas.service import ServiceOut, ServiceCreateIn, ServiceUpdateIn
@@ -441,3 +445,113 @@ def admin_delete_team_member(member_id: int, db: Session = Depends(get_db), curr
     db.delete(member)
     db.commit()
     return {"detail": "Team member removed"}
+
+
+# ---------- ROSKYRO Concierge membership management ----------
+
+def _membership_to_admin_out(db: Session, m: Membership) -> AdminMembershipOut:
+    family_count = db.query(func.count(FamilyMember.id)).filter(FamilyMember.membership_id == m.id).scalar()
+    return AdminMembershipOut(
+        id=m.id,
+        member_code=m.member_code,
+        plan=m.plan.value,
+        status=m.status.value,
+        monthly_price_snapshot=m.monthly_price_snapshot,
+        started_at=m.started_at,
+        next_billing_date=m.next_billing_date,
+        customer_name=m.user.full_name,
+        customer_phone=m.user.phone,
+        family_member_count=family_count or 0,
+    )
+
+
+@router.get("/memberships", response_model=List[AdminMembershipOut])
+def admin_list_memberships(
+    status_filter: Optional[str] = None,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    q = db.query(Membership)
+    if status_filter:
+        q = q.filter(Membership.status == MembershipStatus(status_filter))
+    memberships = q.order_by(Membership.created_at.desc()).all()
+    return [_membership_to_admin_out(db, m) for m in memberships]
+
+
+@router.patch("/memberships/{membership_id}/status", response_model=AdminMembershipOut)
+def admin_update_membership_status(
+    membership_id: int,
+    payload: AdminMembershipStatusIn,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    membership = db.query(Membership).filter(Membership.id == membership_id).first()
+    if not membership:
+        raise HTTPException(status_code=404, detail="Membership not found")
+    membership.status = MembershipStatus(payload.status)
+    if membership.status == MembershipStatus.cancelled:
+        membership.cancelled_at = datetime.utcnow()
+    db.commit()
+    db.refresh(membership)
+    return _membership_to_admin_out(db, membership)
+
+
+@router.get("/memberships/invoices", response_model=List[AdminInvoiceOut])
+def admin_list_invoices(
+    status_filter: Optional[str] = None,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    q = db.query(MembershipInvoice)
+    if status_filter:
+        q = q.filter(MembershipInvoice.status == InvoiceStatus(status_filter))
+    return q.order_by(MembershipInvoice.created_at.desc()).all()
+
+
+@router.post("/memberships/invoices/{invoice_id}/mark-paid", response_model=AdminInvoiceOut)
+def admin_mark_invoice_paid(invoice_id: int, db: Session = Depends(get_db), _: User = Depends(require_admin)):
+    """Manual payment confirmation — same pattern as Assist bookings (UPI
+    screenshot confirmed on WhatsApp, then marked paid here). Activates the
+    membership on its first invoice and pushes the next billing date out
+    by one cycle."""
+    invoice = db.query(MembershipInvoice).filter(MembershipInvoice.id == invoice_id).first()
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+
+    invoice.status = InvoiceStatus.paid
+    invoice.paid_at = datetime.utcnow()
+
+    membership = db.query(Membership).filter(Membership.id == invoice.membership_id).first()
+    if membership:
+        if membership.status == MembershipStatus.pending:
+            membership.status = MembershipStatus.active
+        membership.next_billing_date = invoice.period_end
+
+    db.commit()
+    db.refresh(invoice)
+    return invoice
+
+
+@router.post("/memberships/{membership_id}/invoices/renew", response_model=AdminInvoiceOut)
+def admin_create_renewal_invoice(membership_id: int, db: Session = Depends(get_db), _: User = Depends(require_admin)):
+    """Manually generate the next billing-cycle invoice for a membership.
+    (A scheduled job calling this automatically each cycle is the natural
+    next step once this is running in production.)"""
+    membership = db.query(Membership).filter(Membership.id == membership_id).first()
+    if not membership:
+        raise HTTPException(status_code=404, detail="Membership not found")
+
+    period_start = membership.next_billing_date or datetime.utcnow()
+    period_end = period_start + timedelta(days=30)
+
+    invoice = MembershipInvoice(
+        membership_id=membership.id,
+        period_start=period_start,
+        period_end=period_end,
+        amount=membership.monthly_price_snapshot,
+        status=InvoiceStatus.pending,
+    )
+    db.add(invoice)
+    db.commit()
+    db.refresh(invoice)
+    return invoice
