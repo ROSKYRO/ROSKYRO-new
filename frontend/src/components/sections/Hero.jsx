@@ -1,15 +1,9 @@
-import { BOOK_WA_LINK, WHATSAPP_BOOKING_NUMBER, waLink, BRAND } from "../../config";
+import { BOOK_WA_LINK, BRAND } from "../../config";
 
-const ELITE_WA_LINK = waLink(
-  WHATSAPP_BOOKING_NUMBER,
-  `Hi ${BRAND}, I'd like to inquire about the Elite membership.`
-);
-
-const ELITE_PERKS = [
-  "Zero waiting time at partner hospitals",
-  "Admission-to-discharge concierge escort",
-  "Insurance & claim assistance",
-  "Pick-up & drop-off, medicine delivery",
+const MEMBERSHIP_HIGHLIGHTS = [
+  "Appointment & specialist coordination",
+  "Hospital & diagnostic coordination",
+  "Follow-up reminders, family updates",
 ];
 
 export default function Hero() {
@@ -20,22 +14,26 @@ export default function Hero() {
           Trusted Care & Assistance, When You Need It Most.
         </span>
         <h1 className="font-display text-4xl md:text-5xl leading-tight text-ink mb-5">
-          Care and Assistance, <span className="bg-brand-gradient bg-clip-text text-transparent">Exactly When You Need It.</span>
+          Healthcare, <span className="bg-brand-gradient bg-clip-text text-transparent">Without the Hassle.</span>
         </h1>
         <p className="text-ink/70 text-lg leading-relaxed mb-8 max-w-md">
-          Whether you need support at a hospital, assistance for an elderly family member, help during recovery, or a trusted companion during an urgent situation, ROSKYRO helps connect you with reliable assistance when it matters most.
+          Your personal concierge for appointments, hospitals, diagnostics, specialists and
+          everyday healthcare assistance — one trusted layer coordinating the entire journey.
         </p>
         <div className="flex flex-wrap gap-3">
+          <a
+            href="#membership"
+            className="px-6 py-3 rounded-full bg-brand-gradient text-white font-semibold hover:opacity-90 transition-opacity"
+          >
+            Become a Member
+          </a>
           <a
             href={BOOK_WA_LINK}
             target="_blank"
             rel="noreferrer"
-            className="px-6 py-3 rounded-full bg-brand-gradient text-white font-semibold hover:opacity-90 transition-opacity"
+            className="px-6 py-3 rounded-full border border-ink/15 font-semibold hover:border-violet hover:text-violet transition-colors"
           >
-            <img src="/brand/logo.png" alt="ROSKYRO" className="inline-block w-4 h-4 align-[-3px] mr-1" /> Book Assistance
-          </a>
-          <a href="#services" className="px-6 py-3 rounded-full border border-ink/15 font-semibold hover:border-violet hover:text-violet transition-colors">
-            Explore Services
+            Hire an Assist
           </a>
         </div>
         <p className="text-sm text-ink/50 mt-6">
@@ -51,37 +49,34 @@ export default function Hero() {
           <div className="flex items-center gap-2 mb-5">
             <span className="text-2xl">👑</span>
             <span className="text-[10px] font-semibold tracking-wide bg-brand-gradient text-white px-2 py-0.5 rounded-full">
-              PREMIUM
+              MEMBERSHIP
             </span>
           </div>
 
-          <div className="font-display text-2xl mb-2">{BRAND} Elite</div>
+          <div className="font-display text-2xl mb-2">{BRAND} Concierge</div>
           <p className="text-sm text-parchment/60 mb-6 max-w-sm">
-            Business class care at hospital level — a dedicated concierge handling your entire
-            visit, from admission to discharge and claim settlement.
+            A dedicated concierge who coordinates your entire healthcare journey — appointments,
+            hospitals, diagnostics and specialists, in one place.
           </p>
 
           <div className="space-y-3 mb-6">
-            {ELITE_PERKS.map((perk) => (
-              <div key={perk} className="flex items-center gap-3 bg-white/5 rounded-lg px-4 py-3">
+            {MEMBERSHIP_HIGHLIGHTS.map((item) => (
+              <div key={item} className="flex items-center gap-3 bg-white/5 rounded-lg px-4 py-3">
                 <span className="text-magenta">✓</span>
-                <span className="text-sm font-medium">{perk}</span>
+                <span className="text-sm font-medium">{item}</span>
               </div>
             ))}
           </div>
 
           <p className="text-xs text-parchment/40 mb-5">
-            Membership pricing shared on inquiry — a concierge will confirm the right plan for
-            your city and family size.
+            Plans start at ₹1,999/month — Care, Family and NRI Care plans available.
           </p>
 
           <a
-            href={ELITE_WA_LINK}
-            target="_blank"
-            rel="noreferrer"
+            href="#membership"
             className="block text-center px-5 py-2.5 rounded-full bg-white text-ink font-semibold hover:bg-parchment transition-colors"
           >
-            Inquire on WhatsApp
+            See Membership Plans
           </a>
         </div>
       </div>

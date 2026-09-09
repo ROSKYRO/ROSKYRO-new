@@ -13,11 +13,13 @@ export default function ServicesSection() {
 
   return (
     <section id="services" className="max-w-6xl mx-auto px-5 py-20">
-      <span className="text-xs font-semibold tracking-wide text-magenta">Meet the Partners</span>
-      <h2 className="font-display text-3xl text-ink mt-3 mb-3">A trusted name for every kind of help.</h2>
+      <span className="text-xs font-semibold tracking-wide text-magenta">Pay when you need hands-on help</span>
+      <h2 className="font-display text-3xl text-ink mt-3 mb-3">ROSKYRO Assist — hire a verified person, by the hour.</h2>
       <p className="text-ink/60 mb-10 max-w-2xl">
         Six services live in our INDIA pilot today, with more on the way. Pricing is simple and
-        published — pay only after the service.
+        published — pay only after the service. Want someone to manage your healthcare
+        coordination instead, not just one visit?{" "}
+        <a href="#membership" className="text-violet font-semibold">See ROSKYRO Concierge membership.</a>
       </p>
 
       <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-6 mb-8">

@@ -4,8 +4,8 @@ import { useAuth } from "../context/AuthContext";
 import { BOOK_WA_LINK } from "../config";
 
 const NAV_LINKS = [
-  { href: "/#services", label: "Services" },
-  { href: "/#elite", label: "Elite" },
+  { href: "/#membership", label: "Membership" },
+  { href: "/#services", label: "Assist" },
   { href: "/#story", label: "Our story" },
   { href: "/#how", label: "How it works" },
   { href: "/#demo", label: "Live demo" },
@@ -29,6 +29,7 @@ export default function Navbar() {
   // marketing links only make sense on the logged-out landing page.
   const loggedInLinks = [
     { to: "/my-bookings", label: "My bookings" },
+    { to: "/member", label: "My Membership" },
     ...(user?.role === "admin" ? [{ to: "/admin", label: "Admin" }] : []),
   ];
 

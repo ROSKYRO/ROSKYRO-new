@@ -15,6 +15,8 @@ import Blog from "./pages/Blog";
 import BlogPost from "./pages/BlogPost";
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminLogin from "./pages/AdminLogin";
+import MembershipSignup from "./pages/MembershipSignup";
+import MemberDashboard from "./pages/MemberDashboard";
 
 export default function App() {
   return (
@@ -31,6 +33,8 @@ export default function App() {
           <Route path="/blog/:slug" element={<BlogPost />} />
           <Route path="/become-a-partner" element={<BecomePartner />} />
           <Route path="/my-bookings" element={<RequireAuth><MyBookings /></RequireAuth>} />
+          <Route path="/membership/join" element={<MembershipSignup />} />
+          <Route path="/member" element={<RequireAuth><MemberDashboard /></RequireAuth>} />
           {/* Not linked from Navbar/anywhere on purpose — reachable only if you know the URL. */}
           <Route path={ADMIN_LOGIN_PATH} element={<AdminLogin />} />
           <Route path="/admin" element={<RequireAdmin><AdminDashboard /></RequireAdmin>} />
