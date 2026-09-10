@@ -1,3 +1,5 @@
+import random
+import string
 from datetime import datetime, timedelta
 from typing import List, Optional, Union
 
@@ -18,7 +20,8 @@ from app.models.complaint import Complaint, ComplaintStatus
 from app.models.service import Service
 from app.models.city import City
 from app.models.membership import (
-    Membership, MembershipStatus, FamilyMember, MembershipInvoice, InvoiceStatus,
+    Membership, MembershipStatus, MembershipPlan, PLAN_MONTHLY_PRICE,
+    FamilyMember, MembershipInvoice, InvoiceStatus,
 )
 from app.models.priority_access import (
     PartnerApplication, ApplicationStatus, Partner, PartnerStatus,
@@ -31,6 +34,8 @@ from app.schemas.admin import (
     AdminPartnerApplicationOut, AdminApplicationReviewIn,
     AdminPartnerOut, AdminPartnerUpdateIn,
     AdminAppointmentRequestOut, AdminAppointmentRequestUpdateIn,
+    AdminPartnerQuickAddIn, AdminAppointmentQuickAddIn,
+    AdminMembershipQuickAddIn, AdminMembershipQuickAddOut,
 )
 from app.schemas.auth import LoginIn, TokenOut
 from app.schemas.service import ServiceOut, ServiceCreateIn, ServiceUpdateIn
@@ -702,3 +707,129 @@ def admin_update_appointment_request(
     db.commit()
     db.refresh(req)
     return req
+
+
+# ---------- Quick Add: manual entry for WhatsApp/phone-origin activity ----------
+# ROSKYRO's real-world flow today runs through WhatsApp, not the site's own
+# forms. These endpoints let an admin log that same activity straight into
+# the system in a few seconds — no application/signup wait — so the admin
+# dashboard reflects reality instead of sitting empty.
+
+@router.post("/priority-access/partners/quick-add", response_model=AdminPartnerOut)
+def admin_quick_add_partner(
+    payload: AdminPartnerQuickAddIn,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    """Add a doctor/hospital straight to the live directory — for when they
+    were verified over a WhatsApp/phone conversation instead of through the
+    public application form."""
+    partner = Partner(
+        partner_status=PartnerStatus.active,
+        priority_access_status=PriorityAccessAvailability.available,
+        **payload.model_dump(),
+    )
+    db.add(partner)
+    db.commit()
+    db.refresh(partner)
+    return partner
+
+
+@router.post("/priority-access/appointment-requests/quick-add", response_model=AdminAppointmentRequestOut)
+def admin_quick_add_appointment_request(
+    payload: AdminAppointmentQuickAddIn,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    """Log a patient's appointment request that came in over WhatsApp/call,
+    so it's tracked in the system and shows up in history — even though the
+    patient never used the site form. Linked to an existing account by phone
+    number if one exists; otherwise it's just tracked against the partner."""
+    partner = db.query(Partner).filter(Partner.id == payload.partner_id).first()
+    if not partner:
+        raise HTTPException(status_code=404, detail="Partner not found")
+
+    existing_user = db.query(User).filter(User.phone == payload.patient_phone).first()
+
+    req = AppointmentRequest(
+        partner_id=partner.id,
+        user_id=existing_user.id if existing_user else None,
+        patient_name=payload.patient_name,
+        patient_phone=payload.patient_phone,
+        preferred_time=payload.preferred_time,
+        notes=payload.notes,
+        status=payload.status,
+        concierge_notes=payload.concierge_notes,
+        assigned_admin_id=admin.id,
+        resolved_at=datetime.utcnow() if payload.status in ("confirmed", "cancelled") else None,
+    )
+    db.add(req)
+    db.commit()
+    db.refresh(req)
+    return req
+
+
+@router.post("/memberships/quick-add", response_model=AdminMembershipQuickAddOut)
+def admin_quick_add_membership(
+    payload: AdminMembershipQuickAddIn,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    """Sign up a member who called in / messaged on WhatsApp instead of
+    using the site's self-serve flow. Reuses their account if the phone
+    number already exists; otherwise creates one with a temporary password
+    to share with them (so they can still log in and see their dashboard
+    later). Payment is assumed already confirmed over WhatsApp/UPI unless
+    mark_as_paid is set to false."""
+    user = db.query(User).filter(User.phone == payload.phone).first()
+    account_created = False
+    temp_password = None
+
+    if not user:
+        temp_password = "".join(random.choices(string.ascii_uppercase + string.digits, k=8))
+        user = User(
+            full_name=payload.full_name,
+            phone=payload.phone,
+            hashed_password=hash_password(temp_password),
+            role=UserRole.customer,
+        )
+        db.add(user)
+        db.flush()
+        account_created = True
+
+    if db.query(Membership).filter(Membership.user_id == user.id).first():
+        raise HTTPException(status_code=400, detail="This phone number already has a ROSKYRO Concierge membership.")
+
+    plan = MembershipPlan(payload.plan)
+    price = PLAN_MONTHLY_PRICE[plan]
+    now = datetime.utcnow()
+
+    membership = Membership(
+        member_code=f"RM-{random.randint(10000, 99999)}",
+        user_id=user.id,
+        plan=plan,
+        status=MembershipStatus.active if payload.mark_as_paid else MembershipStatus.pending,
+        monthly_price_snapshot=price,
+        started_at=now,
+        next_billing_date=now + timedelta(days=30),
+    )
+    db.add(membership)
+    db.flush()
+
+    invoice = MembershipInvoice(
+        membership_id=membership.id,
+        period_start=now,
+        period_end=now + timedelta(days=30),
+        amount=price,
+        status=InvoiceStatus.paid if payload.mark_as_paid else InvoiceStatus.pending,
+        paid_at=now if payload.mark_as_paid else None,
+    )
+    db.add(invoice)
+    db.commit()
+    db.refresh(membership)
+
+    return AdminMembershipQuickAddOut(
+        membership=_membership_to_admin_out(db, membership),
+        account_created=account_created,
+        temp_password=temp_password,
+    )

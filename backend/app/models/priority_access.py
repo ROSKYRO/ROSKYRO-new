@@ -139,7 +139,7 @@ class AppointmentRequest(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     partner_id = Column(Integer, ForeignKey("priority_partners.id"), nullable=False)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # null = logged by admin from a WhatsApp/phone request, no site account
 
     patient_name = Column(String, nullable=False)
     patient_phone = Column(String, nullable=False)

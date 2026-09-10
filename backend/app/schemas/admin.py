@@ -222,3 +222,56 @@ class AdminAppointmentRequestOut(BaseModel):
 class AdminAppointmentRequestUpdateIn(BaseModel):
     status: str = Field(..., pattern="^(requested|confirmed|cancelled)$")
     concierge_notes: Optional[str] = None
+
+
+# ---------- Quick Add (manual entry for WhatsApp/phone-origin activity) ----------
+
+class AdminPartnerQuickAddIn(BaseModel):
+    partner_type: str = Field(..., pattern="^(doctor|hospital)$")
+    name: str
+    city: str
+    area: Optional[str] = None
+    address: Optional[str] = None
+    contact_number: str
+    whatsapp: Optional[str] = None
+    email: Optional[str] = None
+    website: Optional[str] = None
+    maps_link: Optional[str] = None
+    specialty: Optional[str] = None
+    sub_specialty: Optional[str] = None
+    qualification: Optional[str] = None
+    affiliation: Optional[str] = None
+    consultation_fee: Optional[float] = None
+    priority_fee: Optional[float] = None
+    priority_slots: Optional[str] = None
+    available_days: Optional[str] = None
+    available_timings: Optional[str] = None
+    departments: Optional[str] = None
+    specialists: Optional[str] = None
+    opd_timings: Optional[str] = None
+    emergency_available: Optional[bool] = None
+    concierge_desk_contact: Optional[str] = None
+    internal_notes: Optional[str] = None
+
+
+class AdminAppointmentQuickAddIn(BaseModel):
+    partner_id: int
+    patient_name: str
+    patient_phone: str
+    preferred_time: Optional[str] = None
+    notes: Optional[str] = None
+    status: str = Field(default="requested", pattern="^(requested|confirmed|cancelled)$")
+    concierge_notes: Optional[str] = None
+
+
+class AdminMembershipQuickAddIn(BaseModel):
+    full_name: str
+    phone: str
+    plan: str = Field(..., pattern="^(care|family|nri)$")
+    mark_as_paid: bool = True   # ROSKYRO already collected payment over WhatsApp/UPI
+
+
+class AdminMembershipQuickAddOut(BaseModel):
+    membership: AdminMembershipOut
+    account_created: bool
+    temp_password: Optional[str] = None  # only returned when a new account was created — share with the member once
