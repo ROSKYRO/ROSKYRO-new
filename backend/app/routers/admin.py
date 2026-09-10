@@ -9,7 +9,7 @@ from sqlalchemy import func
 
 from app.db.session import get_db
 from app.core.deps import require_admin
-from app.core.security import verify_password, create_access_token, hash_password
+from app.core.security import verify_password, create_access_token, hash_password, generate_pin
 from app.core.limiter import limiter
 from app.core.config import settings
 from app.models.user import User, UserRole
@@ -36,7 +36,9 @@ from app.schemas.admin import (
     AdminAppointmentRequestOut, AdminAppointmentRequestUpdateIn,
     AdminPartnerQuickAddIn, AdminAppointmentQuickAddIn,
     AdminMembershipQuickAddIn, AdminMembershipQuickAddOut,
+    AdminBookingQuickAddIn, AdminBookingQuickAddOut,
 )
+from app.services.pricing import price_booking
 from app.schemas.auth import LoginIn, TokenOut
 from app.schemas.service import ServiceOut, ServiceCreateIn, ServiceUpdateIn
 from app.schemas.city import CityAdminOut, CityCreateIn, CityUpdateIn
@@ -152,6 +154,23 @@ def list_customers(db: Session = Depends(get_db), _: User = Depends(require_admi
     ]
 
 
+def _booking_to_admin_out(b: Booking) -> AdminBookingOut:
+    return AdminBookingOut(
+        id=b.id,
+        booking_code=b.booking_code,
+        customer_name=b.customer.full_name if b.customer else "—",
+        customer_phone=b.customer.phone if b.customer else "—",
+        agent_name=b.agent.full_name if b.agent else None,
+        service_name=b.service.name if b.service else "—",
+        status=b.status,
+        scheduled_start=b.scheduled_start,
+        booked_hours=b.booked_hours,
+        total_amount=b.total_amount,
+        sos_triggered=b.sos_triggered,
+        created_at=b.created_at,
+    )
+
+
 @router.get("/bookings", response_model=List[AdminBookingOut])
 def list_all_bookings(
     status: Optional[BookingStatus] = None,
@@ -164,23 +183,7 @@ def list_all_bookings(
     if status:
         query = query.filter(Booking.status == status)
     bookings = query.limit(500).all()
-    return [
-        AdminBookingOut(
-            id=b.id,
-            booking_code=b.booking_code,
-            customer_name=b.customer.full_name if b.customer else "—",
-            customer_phone=b.customer.phone if b.customer else "—",
-            agent_name=b.agent.full_name if b.agent else None,
-            service_name=b.service.name if b.service else "—",
-            status=b.status,
-            scheduled_start=b.scheduled_start,
-            booked_hours=b.booked_hours,
-            total_amount=b.total_amount,
-            sos_triggered=b.sos_triggered,
-            created_at=b.created_at,
-        )
-        for b in bookings
-    ]
+    return [_booking_to_admin_out(b) for b in bookings]
 
 
 @router.get("/complaints", response_model=List[ComplaintOut])
@@ -830,6 +833,108 @@ def admin_quick_add_membership(
 
     return AdminMembershipQuickAddOut(
         membership=_membership_to_admin_out(db, membership),
+        account_created=account_created,
+        temp_password=temp_password,
+    )
+
+
+@router.post("/bookings/quick-add", response_model=AdminBookingQuickAddOut)
+def admin_quick_add_booking(
+    payload: AdminBookingQuickAddIn,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    """Log a booking that a customer placed over WhatsApp/call instead of
+    through the site's own booking flow. Reuses their account if the phone
+    number already exists; otherwise creates one with a temporary password
+    to share with them. Start/End PINs are still generated so the booking
+    behaves normally if it's picked up through the app from here on."""
+    service = db.query(Service).get(payload.service_id)
+    if not service:
+        raise HTTPException(status_code=404, detail="Service not found")
+
+    agent = None
+    if payload.agent_id is not None:
+        agent = db.query(Agent).get(payload.agent_id)
+        if not agent:
+            raise HTTPException(status_code=404, detail="Partner not found")
+
+    if payload.status != "requested" and agent is None:
+        raise HTTPException(status_code=400, detail="Select a partner before setting this status")
+
+    user = db.query(User).filter(User.phone == payload.customer_phone).first()
+    account_created = False
+    temp_password = None
+
+    if not user:
+        temp_password = "".join(random.choices(string.ascii_uppercase + string.digits, k=8))
+        user = User(
+            full_name=payload.customer_name,
+            phone=payload.customer_phone,
+            hashed_password=hash_password(temp_password),
+            role=UserRole.customer,
+        )
+        db.add(user)
+        db.flush()
+        account_created = True
+
+    booking = Booking(
+        booking_code=f"RK-{random.randint(10000, 99999)}",
+        customer_id=user.id,
+        agent_id=agent.id if agent else None,
+        service_id=service.id,
+        city_id=agent.city_id if agent else None,
+        address=payload.address,
+        contact_on_arrival_name=payload.contact_on_arrival_name,
+        contact_on_arrival_phone=payload.contact_on_arrival_phone,
+        notes=payload.notes,
+        scheduled_start=payload.scheduled_start,
+        booked_hours=payload.booked_hours,
+        distance_km=payload.distance_km,
+        ends_at_different_location=payload.ends_at_different_location,
+        status=BookingStatus(payload.status),
+        start_pin=generate_pin(),
+        end_pin=generate_pin(),
+    )
+
+    if payload.status == "completed":
+        booking.actual_start_at = payload.scheduled_start
+        booking.actual_end_at = payload.scheduled_start + timedelta(hours=payload.booked_hours)
+        breakdown = price_booking(
+            booked_hours=payload.booked_hours,
+            actual_hours=payload.booked_hours,
+            hourly_rate=service.hourly_rate,
+            distance_km=payload.distance_km,
+            ends_at_different_location=payload.ends_at_different_location,
+        )
+        booking.hourly_rate_snapshot = breakdown.hourly_rate
+        booking.billable_hours = breakdown.billable_hours
+        booking.service_subtotal = breakdown.service_subtotal
+        booking.arrival_fee = breakdown.arrival_fee
+        booking.return_fee = breakdown.return_fee
+        booking.discount_amount = breakdown.discount_amount
+        booking.gst_amount = breakdown.gst_amount
+        booking.total_amount = breakdown.total_amount
+
+    db.add(booking)
+    db.flush()
+
+    if payload.status == "completed":
+        payment = Payment(
+            booking_id=booking.id,
+            amount=booking.total_amount,
+            status=PaymentStatus.paid if payload.mark_as_paid else PaymentStatus.pending,
+            paid_at=datetime.utcnow() if payload.mark_as_paid else None,
+        )
+        db.add(payment)
+        if agent:
+            agent.total_jobs += 1
+
+    db.commit()
+    db.refresh(booking)
+
+    return AdminBookingQuickAddOut(
+        booking=_booking_to_admin_out(booking),
         account_created=account_created,
         temp_password=temp_password,
     )

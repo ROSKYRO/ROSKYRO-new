@@ -275,3 +275,26 @@ class AdminMembershipQuickAddOut(BaseModel):
     membership: AdminMembershipOut
     account_created: bool
     temp_password: Optional[str] = None  # only returned when a new account was created — share with the member once
+
+
+class AdminBookingQuickAddIn(BaseModel):
+    customer_name: str
+    customer_phone: str = Field(..., min_length=10, max_length=15)
+    service_id: int
+    agent_id: Optional[int] = None
+    address: str = "Confirmed over WhatsApp — address to be shared"
+    contact_on_arrival_name: Optional[str] = None
+    contact_on_arrival_phone: Optional[str] = None
+    notes: Optional[str] = None
+    scheduled_start: datetime
+    booked_hours: float = Field(..., gt=0)
+    distance_km: float = 0.0
+    ends_at_different_location: bool = False
+    status: str = Field(default="requested", pattern="^(requested|assigned|in_progress|completed|cancelled)$")
+    mark_as_paid: bool = False  # only relevant when status is "completed"; ROSKYRO already collected payment over WhatsApp/UPI
+
+
+class AdminBookingQuickAddOut(BaseModel):
+    booking: AdminBookingOut
+    account_created: bool
+    temp_password: Optional[str] = None  # only returned when a new customer account was created — share with them once
