@@ -30,7 +30,8 @@ class FamilyMemberIn(BaseModel):
     relation: Optional[str] = None
     age: Optional[int] = None
     phone: Optional[str] = None
-    notes: Optional[str] = None
+    # Intentionally no free-text "notes" field — see model comment. Any
+    # health/medical detail goes to the concierge over WhatsApp, not here.
 
 
 class FamilyMemberOut(FamilyMemberIn):
@@ -71,17 +72,19 @@ class CareRequestStatusIn(BaseModel):
 
 
 # ---------- Document vault ----------
+# Metadata-only by design — no file_url/notes/description here. See
+# CareDocument model docstring: the actual document is shared with the
+# concierge over WhatsApp, never uploaded to or described in our DB.
 
 class CareDocumentIn(BaseModel):
     family_member_id: Optional[int] = None
     title: str
     doc_type: str = "other"
-    file_url: Optional[str] = None
-    notes: Optional[str] = None
 
 
 class CareDocumentOut(CareDocumentIn):
     id: int
+    status: str
     uploaded_at: datetime
 
     class Config:

@@ -75,7 +75,11 @@ class FamilyMember(Base):
     relation = Column(String, nullable=True)   # e.g. "Self", "Mother", "Father", "Spouse", "Child"
     age = Column(Integer, nullable=True)
     phone = Column(String, nullable=True)
-    notes = Column(Text, nullable=True)        # allergies, known conditions, etc. — free text, member-entered
+    # No free-text "notes" field here on purpose — this used to allow members to
+    # paste allergies/conditions, which we do not want landing in the DB. Any
+    # health/medical detail a member needs to share goes to the concierge over
+    # WhatsApp, not into a stored field. Do not re-add a free-text health field
+    # here without also wiring the retention/auto-delete job (see CareDocument).
 
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -109,10 +113,17 @@ class CareRequest(Base):
 
     category = Column(Enum(CareRequestCategory), default=CareRequestCategory.other, nullable=False)
     title = Column(String, nullable=False)
+    # Free text, member-entered. Frontend placeholder steers members toward
+    # "reason for the visit" (e.g. "follow-up visit") rather than diagnosis or
+    # report detail — but this field is not validated/sanitized server-side,
+    # so treat it as potentially containing health info in practice.
     description = Column(Text, nullable=True)
     status = Column(Enum(CareRequestStatus), default=CareRequestStatus.open, nullable=False)
 
-    concierge_notes = Column(Text, nullable=True)  # internal/admin-visible updates shared back to the member
+    # Internal/admin-visible updates shared back to the member. Staff SOP:
+    # keep these to coordination status (fee, slot, confirmation) — do not
+    # copy diagnosis/report detail in here.
+    concierge_notes = Column(Text, nullable=True)
 
     created_at = Column(DateTime, default=datetime.utcnow)
     resolved_at = Column(DateTime, nullable=True)
@@ -121,10 +132,25 @@ class CareRequest(Base):
     family_member = relationship("FamilyMember")
 
 
+class CareDocumentStatus(str, enum.Enum):
+    pending = "pending"                    # ticket raised, member still needs to send the file on WhatsApp
+    shared_with_concierge = "shared_with_concierge"  # concierge has received/confirmed the file over WhatsApp
+    resolved = "resolved"
+
+
 class CareDocument(Base):
-    """Document vault entry. MVP scope: stores a link/reference to the file
-    (e.g. a WhatsApp-shared or cloud-storage URL) plus metadata — actual file
-    upload/storage (S3 or similar) is a follow-up integration, not yet wired."""
+    """Document vault entry — deliberately metadata-only.
+
+    Policy: prescriptions/reports/discharge summaries are health data. We do
+    NOT store the file, a link to it, or any free-text description of its
+    contents in this table (or anywhere else in the DB) — only a title,
+    doc_type, and a coordination status. The actual document is shared
+    directly between the member and the concierge over WhatsApp; this row is
+    just a tracker so both sides know a document is expected/received.
+
+    Do not add file_url/notes/description columns back here without also
+    building the retention/auto-delete job — see membership dev notes.
+    """
     __tablename__ = "care_documents"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -133,8 +159,7 @@ class CareDocument(Base):
 
     title = Column(String, nullable=False)
     doc_type = Column(String, default="other")  # prescription / report / discharge_summary / insurance / other
-    file_url = Column(String, nullable=True)     # external link; direct upload not yet implemented
-    notes = Column(Text, nullable=True)
+    status = Column(Enum(CareDocumentStatus), default=CareDocumentStatus.pending, nullable=False)
 
     uploaded_at = Column(DateTime, default=datetime.utcnow)
 

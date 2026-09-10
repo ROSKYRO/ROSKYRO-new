@@ -11,7 +11,7 @@ from app.models.user import User
 from app.models.membership import (
     Membership, MembershipPlan, MembershipStatus, PLAN_MONTHLY_PRICE, PLAN_MAX_FAMILY_MEMBERS,
     FamilyMember, CareRequest, CareRequestCategory, CareRequestStatus,
-    CareDocument, TransportRequest, TransportStatus,
+    CareDocument, CareDocumentStatus, TransportRequest, TransportStatus,
     MembershipInvoice, InvoiceStatus,
 )
 from app.schemas.membership import (
@@ -215,8 +215,16 @@ def list_documents(db: Session = Depends(get_db), user: User = Depends(get_curre
 
 @router.post("/documents", response_model=CareDocumentOut)
 def add_document(payload: CareDocumentIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Raises a document-vault ticket. Intentionally metadata-only — no file
+    or file content is accepted/stored here. The member shares the actual
+    document with their concierge directly on WhatsApp; this just tracks
+    that a document is expected."""
     membership = _get_membership(db, user)
-    doc = CareDocument(membership_id=membership.id, **payload.model_dump())
+    doc = CareDocument(
+        membership_id=membership.id,
+        status=CareDocumentStatus.pending,
+        **payload.model_dump(),
+    )
     db.add(doc)
     db.commit()
     db.refresh(doc)
