@@ -78,9 +78,11 @@ export default function MyBookings() {
                 <div className="font-semibold text-ink">{b.booking_code}</div>
                 <div className="text-sm text-ink/60">{STATUS_LABEL[b.status] || b.status}</div>
               </div>
-              {b.total_amount != null && (
+              {b.is_membership_covered ? (
+                <div className="text-xs font-semibold px-2.5 py-1 rounded-full bg-violet/15 text-magenta">Membership – Free</div>
+              ) : b.total_amount != null ? (
                 <div className="font-display text-xl text-ink">₹{b.total_amount.toFixed(2)}</div>
-              )}
+              ) : null}
             </div>
 
             <div className="text-sm text-ink/60 mb-3">{b.address}</div>

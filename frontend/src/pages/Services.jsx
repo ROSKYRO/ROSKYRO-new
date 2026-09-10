@@ -12,6 +12,7 @@ export default function Services() {
   const [distanceKm, setDistanceKm] = useState(4);
   const [endsElsewhere, setEndsElsewhere] = useState(false);
   const [estimate, setEstimate] = useState(null);
+  const [quota, setQuota] = useState(null);
   const [form, setForm] = useState({
     address: "", contact_on_arrival_name: "", contact_on_arrival_phone: "", scheduled_start: "", notes: "",
   });
@@ -27,6 +28,11 @@ export default function Services() {
   }, []);
 
   useEffect(() => {
+    if (!user) return;
+    api.get("/membership/assist-quota").then((r) => setQuota(r.data)).catch(() => setQuota(null));
+  }, [user]);
+
+  useEffect(() => {
     if (!selected) return;
     api.post("/bookings/estimate", {
       service_id: selected.id,
@@ -35,6 +41,8 @@ export default function Services() {
       ends_at_different_location: endsElsewhere,
     }).then((r) => setEstimate(r.data)).catch(() => setEstimate(null));
   }, [selected, hours, distanceKm, endsElsewhere]);
+
+  const coveredByMembership = quota && quota.status === "active" && quota.remaining > 0;
 
   async function handleBook(e) {
     e.preventDefault();
@@ -57,6 +65,7 @@ export default function Services() {
         ends_at_different_location: endsElsewhere,
       });
       setConfirmed(data);
+      api.get("/membership/assist-quota").then((r) => setQuota(r.data)).catch(() => {});
     } catch (err) {
       setError(err.response?.data?.detail || "Could not create the booking. Please check the details and try again.");
     } finally {
@@ -70,6 +79,11 @@ export default function Services() {
         <div className="text-5xl mb-4">✅</div>
         <h1 className="font-display text-3xl text-ink mb-3">Booking confirmed</h1>
         <p className="text-ink/60 mb-8">Booking code <span className="font-semibold text-ink">{confirmed.booking_code}</span></p>
+        {confirmed.is_membership_covered && (
+          <div className="mb-6 bg-violet/10 border border-violet/20 rounded-lg px-4 py-3 text-sm text-ink">
+            This visit is free — covered by your ROSKYRO Concierge membership.
+          </div>
+        )}
         <div className="bg-violet text-parchment rounded-card p-6 text-left space-y-3">
           <p className="text-sm text-parchment/70">Share these PINs only at the right moment — never in advance.</p>
           <div className="flex justify-between bg-parchment/10 rounded-lg px-4 py-3">
@@ -91,6 +105,23 @@ export default function Services() {
       {/* Left: service + details form */}
       <div className="md:col-span-3">
         <h1 className="font-display text-3xl text-ink mb-6">Book a Partner</h1>
+
+        {user && quota?.is_member && quota.status === "active" && (
+          quota.remaining > 0 ? (
+            <div className="mb-6 bg-violet/10 border border-violet/20 rounded-lg px-4 py-3 text-sm text-ink">
+              You have <strong>{quota.remaining} of {quota.quota}</strong> free Assist visits left this month with your ROSKYRO Concierge membership.
+            </div>
+          ) : (
+            <div className="mb-6 bg-flare/10 border border-flare/30 rounded-lg px-4 py-3 text-sm text-ink">
+              You've used all your free Assist visits this month — this booking will be billed at the normal rate below.
+            </div>
+          )
+        )}
+        {user && quota?.is_member && quota.status !== "active" && (
+          <div className="mb-6 bg-ink/5 border border-ink/10 rounded-lg px-4 py-3 text-sm text-ink/70">
+            Your Concierge membership is currently {quota.status} — Assist visits will be billed at the normal rate below.
+          </div>
+        )}
 
         <div className="grid sm:grid-cols-3 gap-3 mb-8">
           {services.map((s) => (
@@ -166,7 +197,16 @@ export default function Services() {
       <div className="md:col-span-2">
         <div className="sticky top-24 bg-ink text-parchment rounded-card p-6">
           <div className="font-display text-lg mb-4">Estimated bill</div>
-          {estimate ? (
+          {coveredByMembership ? (
+            <div className="space-y-2 text-sm">
+              <div className="border-t border-parchment/20 pt-3 flex justify-between font-display text-xl">
+                <span>Total</span><span>Free</span>
+              </div>
+              <p className="text-xs text-parchment/50 pt-2">
+                Covered by your ROSKYRO Concierge membership — {quota.remaining} of {quota.quota} free visits left this month.
+              </p>
+            </div>
+          ) : estimate ? (
             <div className="space-y-2 text-sm">
               <Row label={`${estimate.booked_hours} hr × ₹${estimate.hourly_rate}`} value={`₹${estimate.service_subtotal.toFixed(2)}`} />
               <Row label="Arrival fee" value={`₹${estimate.arrival_fee.toFixed(2)}`} />

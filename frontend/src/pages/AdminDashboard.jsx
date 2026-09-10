@@ -122,6 +122,7 @@ export default function AdminDashboard() {
     if (tab === "bookings") {
       if (bookings.length === 0) loadBookings();
       if (services.length === 0) loadServices();
+      if (memberships.length === 0) loadMemberships();
     }
     if (tab === "complaints" && complaints.length === 0) loadComplaints();
     if (tab === "services" && services.length === 0) loadServices();
@@ -251,6 +252,11 @@ export default function AdminDashboard() {
     const { data } = await api.post("/admin/bookings/quick-add", payload);
     loadBookings();
     return data;
+  }
+  async function setBookingCoverage(bookingId, payload) {
+    await api.patch(`/admin/bookings/${bookingId}/coverage`, payload);
+    loadBookings();
+    loadMemberships();
   }
 
   // --- Memberships ---
@@ -559,6 +565,11 @@ export default function AdminDashboard() {
                       <div className="text-sm text-ink/60 capitalize">
                         {m.member_code} · {m.plan} · ₹{m.monthly_price_snapshot.toLocaleString("en-IN")}/mo · {m.family_member_count} family member(s)
                       </div>
+                      {m.status === "active" && (
+                        <div className="text-xs text-ink/50 mt-1">
+                          This month: {m.assist_visits_used}/{m.assist_visits_quota} Assist visits used
+                        </div>
+                      )}
                       {m.next_billing_date && (
                         <div className="text-xs text-ink/50 mt-1">Next billing {new Date(m.next_billing_date).toLocaleDateString("en-IN")}</div>
                       )}
@@ -628,7 +639,7 @@ export default function AdminDashboard() {
       {tab === "bookings" && (
         <div>
           <div className="mb-5">
-            <QuickAddBookingForm services={services} agents={agents} onAdd={quickAddBooking} />
+            <QuickAddBookingForm services={services} agents={agents} memberships={memberships} onAdd={quickAddBooking} />
           </div>
           {loading && <p className="text-ink/50 mb-4">Loading…</p>}
           {!loading && bookings.length === 0 && <p className="text-ink/60">No bookings yet.</p>}
@@ -645,6 +656,7 @@ export default function AdminDashboard() {
                     <Th>Hours</Th>
                     <Th>Amount</Th>
                     <Th>Scheduled</Th>
+                    <Th>Membership</Th>
                   </tr>
                 </thead>
                 <tbody>
@@ -656,8 +668,19 @@ export default function AdminDashboard() {
                       <Td>{b.service_name}</Td>
                       <Td>{BOOKING_STATUS_LABELS[b.status] || b.status}</Td>
                       <Td>{b.booked_hours}</Td>
-                      <Td>{b.total_amount != null ? `₹${b.total_amount.toFixed(0)}` : "—"}</Td>
+                      <Td>
+                        {b.is_membership_covered ? (
+                          <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-violet/15 text-magenta">Free (Membership)</span>
+                        ) : b.total_amount != null ? (
+                          `₹${b.total_amount.toFixed(0)}`
+                        ) : (
+                          "—"
+                        )}
+                      </Td>
                       <Td>{new Date(b.scheduled_start).toLocaleString()}</Td>
+                      <Td>
+                        <CoverageToggle booking={b} memberships={memberships} onSet={setBookingCoverage} />
+                      </Td>
                     </tr>
                   ))}
                 </tbody>
@@ -1094,6 +1117,67 @@ function Input({ label, ...props }) {
   );
 }
 
+function CoverageToggle({ booking, memberships, onSet }) {
+  const [picking, setPicking] = useState(false);
+  const [membershipId, setMembershipId] = useState(booking.membership_id || "");
+  const [saving, setSaving] = useState(false);
+
+  async function markFree() {
+    if (!membershipId) return;
+    setSaving(true);
+    try {
+      await onSet(booking.id, { is_membership_covered: true, membership_id: Number(membershipId) });
+      setPicking(false);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function undo() {
+    setSaving(true);
+    try {
+      await onSet(booking.id, { is_membership_covered: false });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (booking.status !== "completed") {
+    return <span className="text-xs text-ink/40">—</span>;
+  }
+
+  if (booking.is_membership_covered) {
+    return (
+      <button onClick={undo} disabled={saving} className="text-xs font-semibold px-2.5 py-1 rounded-full bg-ink/10 text-ink/70 disabled:opacity-60">
+        Undo free
+      </button>
+    );
+  }
+
+  if (!picking) {
+    return (
+      <button onClick={() => setPicking(true)} className="text-xs font-semibold px-2.5 py-1 rounded-full bg-violet/15 text-magenta">
+        Mark free
+      </button>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <select value={membershipId} onChange={(e) => setMembershipId(e.target.value)} className="text-xs border border-ink/15 rounded-lg px-2 py-1 bg-white max-w-[140px]">
+        <option value="">Membership...</option>
+        {memberships.map((m) => <option key={m.id} value={m.id}>{m.customer_name} ({m.plan})</option>)}
+      </select>
+      <button onClick={markFree} disabled={saving || !membershipId} className="text-xs font-semibold px-2 py-1 rounded-full bg-violet text-white disabled:opacity-60">
+        ✓
+      </button>
+      <button onClick={() => setPicking(false)} className="text-xs px-2 py-1 rounded-full bg-ink/10 text-ink/60">
+        ✕
+      </button>
+    </div>
+  );
+}
+
 function QuickAddPartnerForm({ onAdd }) {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({
@@ -1318,12 +1402,13 @@ function QuickAddMembershipForm({ onAdd }) {
   );
 }
 
-function QuickAddBookingForm({ services, agents, onAdd }) {
+function QuickAddBookingForm({ services, agents, memberships, onAdd }) {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({
     customer_name: "", customer_phone: "", service_id: "", agent_id: "",
     address: "", scheduled_start: "", booked_hours: "2", distance_km: "0",
     ends_at_different_location: false, notes: "", status: "requested", mark_as_paid: false,
+    membership_id: "", is_membership_covered: false,
   });
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -1346,6 +1431,8 @@ function QuickAddBookingForm({ services, agents, onAdd }) {
         booked_hours: Number(form.booked_hours),
         distance_km: Number(form.distance_km || 0),
         scheduled_start: new Date(form.scheduled_start).toISOString(),
+        membership_id: form.membership_id ? Number(form.membership_id) : null,
+        is_membership_covered: form.is_membership_covered && !!form.membership_id,
       };
       if (!payload.address) delete payload.address; // let backend default kick in
       const data = await onAdd(payload);
@@ -1354,6 +1441,7 @@ function QuickAddBookingForm({ services, agents, onAdd }) {
         customer_name: "", customer_phone: "", service_id: "", agent_id: "",
         address: "", scheduled_start: "", booked_hours: "2", distance_km: "0",
         ends_at_different_location: false, notes: "", status: "requested", mark_as_paid: false,
+        membership_id: "", is_membership_covered: false,
       });
       setOpen(false);
     } catch (err) {
@@ -1394,6 +1482,19 @@ function QuickAddBookingForm({ services, agents, onAdd }) {
             {agents.map((a) => <option key={a.id} value={a.id}>{a.full_name} — {a.phone}</option>)}
           </select>
         </label>
+        <label className="text-sm text-ink/70 block">
+          Concierge membership (optional)
+          <select value={form.membership_id} onChange={set("membership_id")} className="mt-1 w-full text-sm border border-ink/15 rounded-lg px-3 py-2 bg-white">
+            <option value="">Not a member / one-off booking</option>
+            {memberships.map((m) => <option key={m.id} value={m.id}>{m.customer_name} — {m.plan} ({m.assist_visits_quota - m.assist_visits_used} left)</option>)}
+          </select>
+        </label>
+        {form.membership_id && (
+          <label className="flex items-center gap-2 text-sm text-ink/70">
+            <input type="checkbox" checked={form.is_membership_covered} onChange={(e) => setForm((f) => ({ ...f, is_membership_covered: e.target.checked }))} />
+            Free — draws from this member's Assist quota
+          </label>
+        )}
         <Input label="Scheduled start" type="datetime-local" value={form.scheduled_start} onChange={set("scheduled_start")} required />
         <Input label="Booked hours" type="number" step="0.5" min="0.5" value={form.booked_hours} onChange={set("booked_hours")} required />
         <Input label="Address" value={form.address} onChange={set("address")} placeholder="Leave blank if not shared yet" />
