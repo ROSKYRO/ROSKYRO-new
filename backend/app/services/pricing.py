@@ -114,3 +114,22 @@ def estimate_booking(
         distance_km=distance_km,
         ends_at_different_location=ends_at_different_location,
     )
+
+
+def waived_breakdown(booked_hours: float, hourly_rate: float, billable_hours: float = 0.0) -> PriceBreakdown:
+    """Fully-free breakdown for a booking covered by a membership's Assist
+    quota (or an admin goodwill override) — nothing is charged, including
+    arrival/return fees. Keeps a real PriceBreakdown shape so callers don't
+    need a separate code path to store/display the result."""
+    return PriceBreakdown(
+        booked_hours=booked_hours,
+        billable_hours=billable_hours,
+        hourly_rate=hourly_rate,
+        service_subtotal=0.0,
+        arrival_fee=0.0,
+        return_fee=0.0,
+        discount_amount=0.0,
+        gst_amount=0.0,
+        total_amount=0.0,
+        first_hour_free_applied=False,
+    )

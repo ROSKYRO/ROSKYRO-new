@@ -33,6 +33,12 @@ PLAN_MAX_FAMILY_MEMBERS = {
     MembershipPlan.nri: 4,
 }
 
+PLAN_FREE_ASSIST_VISITS = {
+    MembershipPlan.care: 2,
+    MembershipPlan.family: 5,
+    MembershipPlan.nri: 8,
+}
+
 
 class Membership(Base):
     """A recurring ROSKYRO Concierge membership — separate from one-off

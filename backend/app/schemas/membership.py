@@ -126,6 +126,18 @@ class MembershipInvoiceOut(BaseModel):
         from_attributes = True
 
 
+# ---------- Assist-visit quota ----------
+
+class AssistQuotaOut(BaseModel):
+    is_member: bool
+    plan: Optional[str] = None
+    status: Optional[str] = None  # membership status; quota only actually applies when this is "active"
+    quota: int = 0
+    used: int = 0
+    remaining: int = 0
+    period_end: Optional[datetime] = None
+
+
 # ---------- Combined dashboard payload ----------
 
 class MemberDashboardOut(BaseModel):

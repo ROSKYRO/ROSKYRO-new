@@ -23,6 +23,7 @@ from app.models.membership import (
     Membership, MembershipStatus, MembershipPlan, PLAN_MONTHLY_PRICE,
     FamilyMember, MembershipInvoice, InvoiceStatus,
 )
+from app.services.membership_quota import assist_quota_status
 from app.models.priority_access import (
     PartnerApplication, ApplicationStatus, Partner, PartnerStatus,
     PriorityAccessAvailability, AppointmentRequest,
@@ -36,9 +37,9 @@ from app.schemas.admin import (
     AdminAppointmentRequestOut, AdminAppointmentRequestUpdateIn,
     AdminPartnerQuickAddIn, AdminAppointmentQuickAddIn,
     AdminMembershipQuickAddIn, AdminMembershipQuickAddOut,
-    AdminBookingQuickAddIn, AdminBookingQuickAddOut,
+    AdminBookingQuickAddIn, AdminBookingQuickAddOut, AdminBookingCoverageIn,
 )
-from app.services.pricing import price_booking
+from app.services.pricing import price_booking, waived_breakdown
 from app.schemas.auth import LoginIn, TokenOut
 from app.schemas.service import ServiceOut, ServiceCreateIn, ServiceUpdateIn
 from app.schemas.city import CityAdminOut, CityCreateIn, CityUpdateIn
@@ -166,6 +167,8 @@ def _booking_to_admin_out(b: Booking) -> AdminBookingOut:
         scheduled_start=b.scheduled_start,
         booked_hours=b.booked_hours,
         total_amount=b.total_amount,
+        is_membership_covered=b.is_membership_covered,
+        membership_id=b.membership_id,
         sos_triggered=b.sos_triggered,
         created_at=b.created_at,
     )
@@ -466,6 +469,7 @@ def admin_delete_team_member(member_id: int, db: Session = Depends(get_db), curr
 
 def _membership_to_admin_out(db: Session, m: Membership) -> AdminMembershipOut:
     family_count = db.query(func.count(FamilyMember.id)).filter(FamilyMember.membership_id == m.id).scalar()
+    quota_status = assist_quota_status(db, m) if m.status == MembershipStatus.active else None
     return AdminMembershipOut(
         id=m.id,
         member_code=m.member_code,
@@ -477,6 +481,8 @@ def _membership_to_admin_out(db: Session, m: Membership) -> AdminMembershipOut:
         customer_name=m.user.full_name,
         customer_phone=m.user.phone,
         family_member_count=family_count or 0,
+        assist_visits_quota=quota_status["quota"] if quota_status else 0,
+        assist_visits_used=quota_status["used"] if quota_status else 0,
     )
 
 
@@ -862,6 +868,15 @@ def admin_quick_add_booking(
     if payload.status != "requested" and agent is None:
         raise HTTPException(status_code=400, detail="Select a partner before setting this status")
 
+    if payload.is_membership_covered and payload.membership_id is None:
+        raise HTTPException(status_code=400, detail="Select a membership to mark this visit as free")
+
+    membership = None
+    if payload.membership_id is not None:
+        membership = db.query(Membership).get(payload.membership_id)
+        if not membership:
+            raise HTTPException(status_code=404, detail="Membership not found")
+
     user = db.query(User).filter(User.phone == payload.customer_phone).first()
     account_created = False
     temp_password = None
@@ -884,6 +899,8 @@ def admin_quick_add_booking(
         agent_id=agent.id if agent else None,
         service_id=service.id,
         city_id=agent.city_id if agent else None,
+        membership_id=membership.id if membership else None,
+        is_membership_covered=payload.is_membership_covered,
         address=payload.address,
         contact_on_arrival_name=payload.contact_on_arrival_name,
         contact_on_arrival_phone=payload.contact_on_arrival_phone,
@@ -900,13 +917,16 @@ def admin_quick_add_booking(
     if payload.status == "completed":
         booking.actual_start_at = payload.scheduled_start
         booking.actual_end_at = payload.scheduled_start + timedelta(hours=payload.booked_hours)
-        breakdown = price_booking(
-            booked_hours=payload.booked_hours,
-            actual_hours=payload.booked_hours,
-            hourly_rate=service.hourly_rate,
-            distance_km=payload.distance_km,
-            ends_at_different_location=payload.ends_at_different_location,
-        )
+        if payload.is_membership_covered:
+            breakdown = waived_breakdown(payload.booked_hours, service.hourly_rate)
+        else:
+            breakdown = price_booking(
+                booked_hours=payload.booked_hours,
+                actual_hours=payload.booked_hours,
+                hourly_rate=service.hourly_rate,
+                distance_km=payload.distance_km,
+                ends_at_different_location=payload.ends_at_different_location,
+            )
         booking.hourly_rate_snapshot = breakdown.hourly_rate
         booking.billable_hours = breakdown.billable_hours
         booking.service_subtotal = breakdown.service_subtotal
@@ -920,12 +940,15 @@ def admin_quick_add_booking(
     db.flush()
 
     if payload.status == "completed":
-        payment = Payment(
-            booking_id=booking.id,
-            amount=booking.total_amount,
-            status=PaymentStatus.paid if payload.mark_as_paid else PaymentStatus.pending,
-            paid_at=datetime.utcnow() if payload.mark_as_paid else None,
-        )
+        if payload.is_membership_covered:
+            payment = Payment(booking_id=booking.id, amount=0.0, status=PaymentStatus.paid, paid_at=datetime.utcnow())
+        else:
+            payment = Payment(
+                booking_id=booking.id,
+                amount=booking.total_amount,
+                status=PaymentStatus.paid if payload.mark_as_paid else PaymentStatus.pending,
+                paid_at=datetime.utcnow() if payload.mark_as_paid else None,
+            )
         db.add(payment)
         if agent:
             agent.total_jobs += 1
@@ -938,3 +961,58 @@ def admin_quick_add_booking(
         account_created=account_created,
         temp_password=temp_password,
     )
+
+
+@router.patch("/bookings/{booking_id}/coverage", response_model=AdminBookingOut)
+def admin_set_booking_coverage(
+    booking_id: int,
+    payload: AdminBookingCoverageIn,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    """Manual goodwill override — mark a booking as free (covered by a
+    membership's Assist quota) or undo that, outside the normal automatic
+    check. Only meaningful for a booking that's already `completed` (that's
+    when pricing fields are filled); for anything earlier, the normal
+    booking flow will price it correctly on its own once it completes."""
+    booking = db.query(Booking).get(booking_id)
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+
+    if payload.is_membership_covered:
+        membership_id = payload.membership_id or booking.membership_id
+        if membership_id is None:
+            raise HTTPException(status_code=400, detail="Select a membership to mark this visit as free")
+        membership = db.query(Membership).get(membership_id)
+        if not membership:
+            raise HTTPException(status_code=404, detail="Membership not found")
+
+        booking.membership_id = membership.id
+        booking.is_membership_covered = True
+
+        if booking.status == BookingStatus.completed:
+            service = db.query(Service).get(booking.service_id)
+            breakdown = waived_breakdown(booking.booked_hours, service.hourly_rate, billable_hours=booking.billable_hours or 0.0)
+            booking.hourly_rate_snapshot = breakdown.hourly_rate
+            booking.service_subtotal = breakdown.service_subtotal
+            booking.arrival_fee = breakdown.arrival_fee
+            booking.return_fee = breakdown.return_fee
+            booking.discount_amount = breakdown.discount_amount
+            booking.gst_amount = breakdown.gst_amount
+            booking.total_amount = breakdown.total_amount
+            if booking.payment:
+                booking.payment.amount = 0.0
+                booking.payment.status = PaymentStatus.paid
+                booking.payment.paid_at = datetime.utcnow()
+    else:
+        booking.is_membership_covered = False
+        # membership_id is left as-is (keeps the record of which membership
+        # this booking belongs to); only the "free" flag is undone. Pricing
+        # for an already-completed booking is not recomputed automatically
+        # here — re-run /bookings/{id}/end via support tooling if a real
+        # charge is now needed, since actual hours worked are no longer known
+        # from this endpoint alone.
+
+    db.commit()
+    db.refresh(booking)
+    return _booking_to_admin_out(booking)

@@ -40,6 +40,8 @@ class BookingOut(BaseModel):
     booking_code: str
     service_id: int
     agent_id: Optional[int]
+    membership_id: Optional[int] = None
+    is_membership_covered: bool = False
     address: str
     contact_on_arrival_name: Optional[str]
     contact_on_arrival_phone: Optional[str]

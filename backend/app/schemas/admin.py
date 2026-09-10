@@ -31,6 +31,8 @@ class AdminBookingOut(BaseModel):
     scheduled_start: datetime
     booked_hours: float
     total_amount: Optional[float] = None
+    is_membership_covered: bool = False
+    membership_id: Optional[int] = None
     sos_triggered: bool
     created_at: datetime
 
@@ -96,6 +98,8 @@ class AdminMembershipOut(BaseModel):
     customer_name: str
     customer_phone: str
     family_member_count: int
+    assist_visits_quota: int = 0
+    assist_visits_used: int = 0
 
     class Config:
         from_attributes = True
@@ -292,9 +296,18 @@ class AdminBookingQuickAddIn(BaseModel):
     ends_at_different_location: bool = False
     status: str = Field(default="requested", pattern="^(requested|assigned|in_progress|completed|cancelled)$")
     mark_as_paid: bool = False  # only relevant when status is "completed"; ROSKYRO already collected payment over WhatsApp/UPI
+    membership_id: Optional[int] = None  # link to a Concierge membership if this visit should draw from its Assist quota
+    is_membership_covered: bool = False  # true = free, skips billing entirely (requires membership_id)
 
 
 class AdminBookingQuickAddOut(BaseModel):
     booking: AdminBookingOut
     account_created: bool
     temp_password: Optional[str] = None  # only returned when a new customer account was created — share with them once
+
+
+class AdminBookingCoverageIn(BaseModel):
+    """Manual goodwill override — mark (or unmark) a booking as covered by
+    a membership's Assist quota, outside the normal automatic check."""
+    is_membership_covered: bool
+    membership_id: Optional[int] = None  # required when is_membership_covered is true and the booking has none set yet

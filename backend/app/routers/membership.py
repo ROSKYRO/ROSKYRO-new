@@ -14,13 +14,14 @@ from app.models.membership import (
     CareDocument, CareDocumentStatus, TransportRequest, TransportStatus,
     MembershipInvoice, InvoiceStatus,
 )
+from app.services.membership_quota import assist_quota_status
 from app.schemas.membership import (
     MembershipSignupIn, MembershipOut,
     FamilyMemberIn, FamilyMemberOut,
     CareRequestIn, CareRequestOut, CareRequestStatusIn,
     CareDocumentIn, CareDocumentOut,
     TransportRequestIn, TransportRequestOut,
-    MembershipInvoiceOut, MemberDashboardOut,
+    MembershipInvoiceOut, MemberDashboardOut, AssistQuotaOut,
 )
 
 router = APIRouter(prefix="/membership", tags=["membership"])
@@ -110,6 +111,30 @@ def my_dashboard(db: Session = Depends(get_db), user: User = Depends(get_current
         recent_transport_requests=recent_transport,
         latest_invoice=latest_invoice,
         max_family_members=PLAN_MAX_FAMILY_MEMBERS[membership.plan],
+    )
+
+
+@router.get("/assist-quota", response_model=AssistQuotaOut)
+def my_assist_quota(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """How many free ROSKYRO Assist visits are left this billing month —
+    used by the booking page to show a live banner before the customer
+    confirms. Safe to call for a non-member (returns is_member=False)."""
+    membership = db.query(Membership).filter(Membership.user_id == user.id).first()
+    if not membership:
+        return AssistQuotaOut(is_member=False)
+
+    if membership.status != MembershipStatus.active:
+        return AssistQuotaOut(is_member=True, plan=membership.plan.value, status=membership.status.value)
+
+    quota_status = assist_quota_status(db, membership)
+    return AssistQuotaOut(
+        is_member=True,
+        plan=membership.plan.value,
+        status=membership.status.value,
+        quota=quota_status["quota"],
+        used=quota_status["used"],
+        remaining=quota_status["remaining"],
+        period_end=quota_status["period_end"],
     )
 
 

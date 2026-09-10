@@ -13,11 +13,13 @@ from app.models.service import Service
 from app.models.agent import Agent
 from app.models.booking import Booking, BookingStatus
 from app.models.payment import Payment, PaymentStatus
+from app.models.membership import Membership, MembershipStatus
 from app.schemas.booking import (
     BookingEstimateIn, BookingEstimateOut, BookingCreateIn, BookingOut,
     BookingWithPinsOut, SubmitStartPinIn, SubmitEndPinIn, AssignAgentIn, SosIn,
 )
-from app.services.pricing import estimate_booking, price_booking
+from app.services.pricing import estimate_booking, price_booking, waived_breakdown
+from app.services.membership_quota import assist_quota_status
 from app.core.config import settings
 
 router = APIRouter(prefix="/bookings", tags=["bookings"])
@@ -54,9 +56,22 @@ def estimate(payload: BookingEstimateIn, db: Session = Depends(get_db)):
 def create_booking(payload: BookingCreateIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     _get_service_or_404(db, payload.service_id)
 
+    # If this customer has an active membership with Assist visits still
+    # left in the current billing period, this booking draws from that free
+    # quota — billing is skipped when it's closed out (see submit_end_pin).
+    membership = db.query(Membership).filter(Membership.user_id == user.id).first()
+    is_covered = False
+    membership_id = None
+    if membership and membership.status == MembershipStatus.active:
+        if assist_quota_status(db, membership)["remaining"] > 0:
+            is_covered = True
+            membership_id = membership.id
+
     booking = Booking(
         booking_code=f"RK-{random.randint(10000, 99999)}",
         customer_id=user.id,
+        membership_id=membership_id,
+        is_membership_covered=is_covered,
         service_id=payload.service_id,
         city_id=payload.city_id,
         address=payload.address,
@@ -172,13 +187,19 @@ def submit_end_pin(booking_id: int, payload: SubmitEndPinIn, db: Session = Depen
     actual_hours = max((booking.actual_end_at - booking.actual_start_at).total_seconds() / 3600.0, 0.01)
 
     service = db.query(Service).get(booking.service_id)
-    breakdown = price_booking(
-        booked_hours=booking.booked_hours,
-        actual_hours=actual_hours,
-        hourly_rate=service.hourly_rate,
-        distance_km=booking.distance_km,
-        ends_at_different_location=booking.ends_at_different_location,
-    )
+
+    if booking.is_membership_covered:
+        # Drawn from the member's free Assist-visit quota — no charge at all,
+        # including arrival/return fees. See services/membership_quota.py.
+        breakdown = waived_breakdown(booking.booked_hours, service.hourly_rate)
+    else:
+        breakdown = price_booking(
+            booked_hours=booking.booked_hours,
+            actual_hours=actual_hours,
+            hourly_rate=service.hourly_rate,
+            distance_km=booking.distance_km,
+            ends_at_different_location=booking.ends_at_different_location,
+        )
 
     booking.status = BookingStatus.completed
     booking.hourly_rate_snapshot = breakdown.hourly_rate
@@ -190,7 +211,10 @@ def submit_end_pin(booking_id: int, payload: SubmitEndPinIn, db: Session = Depen
     booking.gst_amount = breakdown.gst_amount
     booking.total_amount = breakdown.total_amount
 
-    payment = Payment(booking_id=booking.id, amount=breakdown.total_amount, status=PaymentStatus.pending)
+    if booking.is_membership_covered:
+        payment = Payment(booking_id=booking.id, amount=0.0, status=PaymentStatus.paid, paid_at=datetime.utcnow())
+    else:
+        payment = Payment(booking_id=booking.id, amount=breakdown.total_amount, status=PaymentStatus.pending)
     db.add(payment)
 
     if booking.agent_id:

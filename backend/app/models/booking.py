@@ -32,6 +32,8 @@ class Booking(Base):
     agent_id = Column(Integer, ForeignKey("agents.id"), nullable=True)
     service_id = Column(Integer, ForeignKey("services.id"), nullable=False)
     city_id = Column(Integer, ForeignKey("cities.id"), nullable=True)
+    membership_id = Column(Integer, ForeignKey("memberships.id"), nullable=True)  # null = normal (non-member) booking
+    is_membership_covered = Column(Boolean, default=False)  # true = used the plan's free Assist-visit quota, billing skipped
 
     address = Column(Text, nullable=False)
     contact_on_arrival_name = Column(String, nullable=True)
@@ -68,5 +70,6 @@ class Booking(Base):
     customer = relationship("User", back_populates="bookings")
     agent = relationship("Agent", back_populates="bookings")
     service = relationship("Service")
+    membership = relationship("Membership")
     payment = relationship("Payment", back_populates="booking", uselist=False)
     review = relationship("Review", back_populates="booking", uselist=False)
