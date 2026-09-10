@@ -119,7 +119,10 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     if (tab === "customers" && customers.length === 0) loadCustomers();
-    if (tab === "bookings" && bookings.length === 0) loadBookings();
+    if (tab === "bookings") {
+      if (bookings.length === 0) loadBookings();
+      if (services.length === 0) loadServices();
+    }
     if (tab === "complaints" && complaints.length === 0) loadComplaints();
     if (tab === "services" && services.length === 0) loadServices();
     if (tab === "cities" && cities.length === 0) loadCities();
@@ -241,6 +244,13 @@ export default function AdminDashboard() {
   async function quickAddAppointment(payload) {
     await api.post("/admin/priority-access/appointment-requests/quick-add", payload);
     loadPARequests();
+  }
+
+  // --- Bookings ---
+  async function quickAddBooking(payload) {
+    const { data } = await api.post("/admin/bookings/quick-add", payload);
+    loadBookings();
+    return data;
   }
 
   // --- Memberships ---
@@ -617,6 +627,9 @@ export default function AdminDashboard() {
 
       {tab === "bookings" && (
         <div>
+          <div className="mb-5">
+            <QuickAddBookingForm services={services} agents={agents} onAdd={quickAddBooking} />
+          </div>
           {loading && <p className="text-ink/50 mb-4">Loading…</p>}
           {!loading && bookings.length === 0 && <p className="text-ink/60">No bookings yet.</p>}
           {bookings.length > 0 && (
@@ -1298,6 +1311,133 @@ function QuickAddMembershipForm({ onAdd }) {
       {result?.account_created && (
         <div className="mt-3 bg-mist rounded-lg p-4 text-sm text-ink/70">
           New account created. Share this temporary password with the member so they can log in:{" "}
+          <strong className="text-ink">{result.temp_password}</strong>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function QuickAddBookingForm({ services, agents, onAdd }) {
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState({
+    customer_name: "", customer_phone: "", service_id: "", agent_id: "",
+    address: "", scheduled_start: "", booked_hours: "2", distance_km: "0",
+    ends_at_different_location: false, notes: "", status: "requested", mark_as_paid: false,
+  });
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [result, setResult] = useState(null);
+
+  function set(field) {
+    return (e) => setForm((f) => ({ ...f, [field]: e.target.value }));
+  }
+
+  async function submit(e) {
+    e.preventDefault();
+    setError("");
+    setSaving(true);
+    setResult(null);
+    try {
+      const payload = {
+        ...form,
+        service_id: Number(form.service_id),
+        agent_id: form.agent_id ? Number(form.agent_id) : null,
+        booked_hours: Number(form.booked_hours),
+        distance_km: Number(form.distance_km || 0),
+        scheduled_start: new Date(form.scheduled_start).toISOString(),
+      };
+      if (!payload.address) delete payload.address; // let backend default kick in
+      const data = await onAdd(payload);
+      setResult(data);
+      setForm({
+        customer_name: "", customer_phone: "", service_id: "", agent_id: "",
+        address: "", scheduled_start: "", booked_hours: "2", distance_km: "0",
+        ends_at_different_location: false, notes: "", status: "requested", mark_as_paid: false,
+      });
+      setOpen(false);
+    } catch (err) {
+      setError(err.response?.data?.detail || "Could not log this booking.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!open) {
+    return (
+      <button onClick={() => setOpen(true)} className="self-start text-sm font-semibold px-4 py-2 rounded-full bg-violet text-white">
+        + Log WhatsApp Booking
+      </button>
+    );
+  }
+
+  return (
+    <div className="max-w-2xl">
+      <form onSubmit={submit} className="border border-ink/10 rounded-card p-5 grid sm:grid-cols-2 gap-3">
+        <div className="sm:col-span-2 font-display text-base text-ink">Log WhatsApp Booking</div>
+        <p className="sm:col-span-2 text-xs text-ink/50 -mt-2">
+          For a customer who booked over WhatsApp/call instead of the site. If they don't have a site account yet, one is created with a temporary password.
+        </p>
+        <Input label="Customer name" value={form.customer_name} onChange={set("customer_name")} required />
+        <Input label="Customer phone" value={form.customer_phone} onChange={set("customer_phone")} required />
+        <label className="text-sm text-ink/70 block">
+          Service
+          <select value={form.service_id} onChange={set("service_id")} required className="mt-1 w-full text-sm border border-ink/15 rounded-lg px-3 py-2 bg-white">
+            <option value="">Select service...</option>
+            {services.map((s) => <option key={s.id} value={s.id}>{s.name} — ₹{s.hourly_rate}/hr</option>)}
+          </select>
+        </label>
+        <label className="text-sm text-ink/70 block">
+          Partner (optional)
+          <select value={form.agent_id} onChange={set("agent_id")} className="mt-1 w-full text-sm border border-ink/15 rounded-lg px-3 py-2 bg-white">
+            <option value="">Unassigned</option>
+            {agents.map((a) => <option key={a.id} value={a.id}>{a.full_name} — {a.phone}</option>)}
+          </select>
+        </label>
+        <Input label="Scheduled start" type="datetime-local" value={form.scheduled_start} onChange={set("scheduled_start")} required />
+        <Input label="Booked hours" type="number" step="0.5" min="0.5" value={form.booked_hours} onChange={set("booked_hours")} required />
+        <Input label="Address" value={form.address} onChange={set("address")} placeholder="Leave blank if not shared yet" />
+        <Input label="Distance (km)" type="number" step="0.1" min="0" value={form.distance_km} onChange={set("distance_km")} />
+        <label className="text-sm text-ink/70 block">
+          Status
+          <select value={form.status} onChange={set("status")} className="mt-1 w-full text-sm border border-ink/15 rounded-lg px-3 py-2 bg-white">
+            <option value="requested">Requested (not yet assigned)</option>
+            <option value="assigned">Assigned</option>
+            <option value="in_progress">In progress</option>
+            <option value="completed">Completed</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
+        </label>
+        <label className="flex items-center gap-2 text-sm text-ink/70 mt-6">
+          <input type="checkbox" checked={form.ends_at_different_location} onChange={(e) => setForm((f) => ({ ...f, ends_at_different_location: e.target.checked }))} />
+          Ends at a different location
+        </label>
+        {form.status === "completed" && (
+          <label className="sm:col-span-2 flex items-center gap-2 text-sm text-ink/70">
+            <input type="checkbox" checked={form.mark_as_paid} onChange={(e) => setForm((f) => ({ ...f, mark_as_paid: e.target.checked }))} />
+            Payment already confirmed (via WhatsApp/UPI)
+          </label>
+        )}
+        <label className="sm:col-span-2 text-sm text-ink/70 block">
+          Notes
+          <textarea value={form.notes} onChange={set("notes")} className="mt-1 w-full text-sm border border-ink/15 rounded-lg px-3 py-2" />
+        </label>
+        {(form.status !== "requested" && !form.agent_id) && (
+          <p className="sm:col-span-2 text-xs text-clay">Select a partner to set a status other than "Requested".</p>
+        )}
+        {error && <p className="sm:col-span-2 text-sm text-clay">{error}</p>}
+        <div className="sm:col-span-2 flex gap-2">
+          <button disabled={saving} className="text-sm font-semibold px-4 py-2 rounded-full bg-violet text-white disabled:opacity-60">
+            {saving ? "Saving…" : "Log booking"}
+          </button>
+          <button type="button" onClick={() => setOpen(false)} className="text-sm font-semibold px-4 py-2 rounded-full bg-ink/10 text-ink/70">
+            Cancel
+          </button>
+        </div>
+      </form>
+      {result?.account_created && (
+        <div className="mt-3 bg-mist rounded-lg p-4 text-sm text-ink/70">
+          New account created. Share this temporary password with the customer so they can log in:{" "}
           <strong className="text-ink">{result.temp_password}</strong>
         </div>
       )}
