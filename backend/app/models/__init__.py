@@ -9,8 +9,10 @@ from app.models.complaint import Complaint
 from app.models.membership import (
     Membership, FamilyMember, CareRequest, CareDocument, TransportRequest, MembershipInvoice,
 )
+from app.models.priority_access import PartnerApplication, Partner, AppointmentRequest
 
 __all__ = [
     "User", "Agent", "Service", "City", "Booking", "Payment", "Review", "Complaint",
     "Membership", "FamilyMember", "CareRequest", "CareDocument", "TransportRequest", "MembershipInvoice",
+    "PartnerApplication", "Partner", "AppointmentRequest",
 ]

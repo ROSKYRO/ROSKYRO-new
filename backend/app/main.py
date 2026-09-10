@@ -10,7 +10,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from app.core.config import settings
 from app.core.limiter import limiter
 from app.db.session import Base, engine
-from app.routers import auth, services, bookings, agents, misc, admin, membership
+from app.routers import auth, services, bookings, agents, misc, admin, membership, priority_access
 
 # Auto-create tables on boot for simplicity (swap for Alembic migrations in production).
 Base.metadata.create_all(bind=engine)
@@ -42,6 +42,7 @@ app.include_router(agents.router, prefix="/api")
 app.include_router(misc.router, prefix="/api")
 app.include_router(admin.router, prefix="/api")
 app.include_router(membership.router, prefix="/api")
+app.include_router(priority_access.router, prefix="/api")
 
 
 @app.on_event("startup")

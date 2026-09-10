@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from typing import List, Optional
+from typing import List, Optional, Union
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
@@ -20,10 +20,17 @@ from app.models.city import City
 from app.models.membership import (
     Membership, MembershipStatus, FamilyMember, MembershipInvoice, InvoiceStatus,
 )
+from app.models.priority_access import (
+    PartnerApplication, ApplicationStatus, Partner, PartnerStatus,
+    PriorityAccessAvailability, AppointmentRequest,
+)
 from app.schemas.admin import (
     CustomerOut, AdminBookingOut, ComplaintOut, ComplaintUpdateIn,
     TeamMemberOut, TeamMemberCreateIn, TeamMemberUpdateIn,
     AdminMembershipOut, AdminMembershipStatusIn, AdminInvoiceOut,
+    AdminPartnerApplicationOut, AdminApplicationReviewIn,
+    AdminPartnerOut, AdminPartnerUpdateIn,
+    AdminAppointmentRequestOut, AdminAppointmentRequestUpdateIn,
 )
 from app.schemas.auth import LoginIn, TokenOut
 from app.schemas.service import ServiceOut, ServiceCreateIn, ServiceUpdateIn
@@ -555,3 +562,143 @@ def admin_create_renewal_invoice(membership_id: int, db: Session = Depends(get_d
     db.commit()
     db.refresh(invoice)
     return invoice
+
+
+# ---------- Priority Access Network ----------
+
+@router.get("/priority-access/applications", response_model=List[AdminPartnerApplicationOut])
+def admin_list_applications(
+    status_filter: Optional[str] = None,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    q = db.query(PartnerApplication)
+    if status_filter:
+        q = q.filter(PartnerApplication.status == ApplicationStatus(status_filter))
+    return q.order_by(PartnerApplication.submitted_at.desc()).all()
+
+
+@router.post("/priority-access/applications/{application_id}/review", response_model=Union[AdminPartnerOut, AdminPartnerApplicationOut])
+def admin_review_application(
+    application_id: int,
+    payload: AdminApplicationReviewIn,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    application = db.query(PartnerApplication).filter(PartnerApplication.id == application_id).first()
+    if not application:
+        raise HTTPException(status_code=404, detail="Application not found")
+    if application.status != ApplicationStatus.pending:
+        raise HTTPException(status_code=400, detail="This application has already been reviewed.")
+
+    application.review_notes = payload.review_notes
+    application.reviewed_by_id = admin.id
+    application.reviewed_at = datetime.utcnow()
+
+    if not payload.approve:
+        application.status = ApplicationStatus.rejected
+        db.commit()
+        db.refresh(application)
+        return application
+
+    application.status = ApplicationStatus.approved
+
+    partner = Partner(
+        source_application_id=application.id,
+        partner_type=application.partner_type,
+        name=application.name,
+        city=application.city,
+        area=application.area,
+        address=application.address,
+        contact_number=application.contact_number,
+        whatsapp=application.whatsapp,
+        email=application.email,
+        website=application.website,
+        maps_link=application.maps_link,
+        specialty=application.specialty,
+        sub_specialty=application.sub_specialty,
+        qualification=application.qualification,
+        affiliation=application.affiliation,
+        consultation_fee=application.consultation_fee,
+        priority_fee=application.priority_fee,
+        priority_slots=application.priority_slots,
+        available_days=application.available_days,
+        available_timings=application.available_timings,
+        departments=application.departments,
+        specialists=application.specialists,
+        opd_timings=application.opd_timings,
+        emergency_available=application.emergency_available,
+        concierge_desk_contact=application.concierge_desk_contact,
+        partner_status=PartnerStatus.active,
+        priority_access_status=PriorityAccessAvailability.available,
+    )
+    db.add(partner)
+    db.commit()
+    db.refresh(partner)
+    return partner
+
+
+@router.get("/priority-access/partners", response_model=List[AdminPartnerOut])
+def admin_list_partners(db: Session = Depends(get_db), _: User = Depends(require_admin)):
+    return db.query(Partner).order_by(Partner.name.asc()).all()
+
+
+@router.patch("/priority-access/partners/{partner_id}", response_model=AdminPartnerOut)
+def admin_update_partner(
+    partner_id: int,
+    payload: AdminPartnerUpdateIn,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    partner = db.query(Partner).filter(Partner.id == partner_id).first()
+    if not partner:
+        raise HTTPException(status_code=404, detail="Partner not found")
+
+    data = payload.model_dump(exclude_unset=True)
+    if "partner_status" in data:
+        partner.partner_status = PartnerStatus(data.pop("partner_status"))
+    if "priority_access_status" in data:
+        partner.priority_access_status = PriorityAccessAvailability(data.pop("priority_access_status"))
+    for field, value in data.items():
+        setattr(partner, field, value)
+
+    db.commit()
+    db.refresh(partner)
+    return partner
+
+
+@router.get("/priority-access/appointment-requests", response_model=List[AdminAppointmentRequestOut])
+def admin_list_appointment_requests(
+    status_filter: Optional[str] = None,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    q = db.query(AppointmentRequest)
+    if status_filter:
+        from app.models.priority_access import AppointmentRequestStatus
+        q = q.filter(AppointmentRequest.status == AppointmentRequestStatus(status_filter))
+    return q.order_by(AppointmentRequest.created_at.desc()).all()
+
+
+@router.patch("/priority-access/appointment-requests/{request_id}", response_model=AdminAppointmentRequestOut)
+def admin_update_appointment_request(
+    request_id: int,
+    payload: AdminAppointmentRequestUpdateIn,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    from app.models.priority_access import AppointmentRequestStatus
+    req = db.query(AppointmentRequest).filter(AppointmentRequest.id == request_id).first()
+    if not req:
+        raise HTTPException(status_code=404, detail="Appointment request not found")
+
+    req.status = AppointmentRequestStatus(payload.status)
+    if payload.concierge_notes is not None:
+        req.concierge_notes = payload.concierge_notes
+    req.assigned_admin_id = admin.id
+    if req.status in (AppointmentRequestStatus.confirmed, AppointmentRequestStatus.cancelled):
+        req.resolved_at = datetime.utcnow()
+
+    db.commit()
+    db.refresh(req)
+    return req
