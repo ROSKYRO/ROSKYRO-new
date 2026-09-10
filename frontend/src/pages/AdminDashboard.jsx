@@ -37,6 +37,8 @@ export default function AdminDashboard() {
   const [paApplications, setPaApplications] = useState([]);
   const [paPartners, setPaPartners] = useState([]);
   const [paRequests, setPaRequests] = useState([]);
+  const [memberships, setMemberships] = useState([]);
+  const [pendingInvoices, setPendingInvoices] = useState([]);
   const [tab, setTab] = useState("overview");
   const [loading, setLoading] = useState(false);
 
@@ -102,6 +104,16 @@ export default function AdminDashboard() {
     setPaRequests(data);
     setLoading(false);
   }
+  async function loadMemberships() {
+    setLoading(true);
+    const { data } = await api.get("/admin/memberships");
+    setMemberships(data);
+    setLoading(false);
+  }
+  async function loadPendingInvoices() {
+    const { data } = await api.get("/admin/memberships/invoices", { params: { status_filter: "pending" } });
+    setPendingInvoices(data);
+  }
 
   useEffect(() => { loadStats(); loadAgents(); }, []);
 
@@ -113,6 +125,7 @@ export default function AdminDashboard() {
     if (tab === "cities" && cities.length === 0) loadCities();
     if (tab === "team" && team.length === 0) loadTeam();
     if (tab === "priority-access") { loadPAApplications(); loadPAPartners(); loadPARequests(); }
+    if (tab === "membership") { loadMemberships(); loadPendingInvoices(); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
 
@@ -221,13 +234,42 @@ export default function AdminDashboard() {
     await api.patch(`/admin/priority-access/appointment-requests/${id}`, payload);
     loadPARequests();
   }
+  async function quickAddPartner(payload) {
+    await api.post("/admin/priority-access/partners/quick-add", payload);
+    loadPAPartners();
+  }
+  async function quickAddAppointment(payload) {
+    await api.post("/admin/priority-access/appointment-requests/quick-add", payload);
+    loadPARequests();
+  }
+
+  // --- Memberships ---
+  async function quickAddMembership(payload) {
+    const { data } = await api.post("/admin/memberships/quick-add", payload);
+    loadMemberships();
+    loadPendingInvoices();
+    return data;
+  }
+  async function updateMembershipStatus(id, status) {
+    await api.patch(`/admin/memberships/${id}/status`, { status });
+    loadMemberships();
+  }
+  async function markInvoicePaid(invoiceId) {
+    await api.post(`/admin/memberships/invoices/${invoiceId}/mark-paid`);
+    loadMemberships();
+    loadPendingInvoices();
+  }
+  async function renewInvoice(membershipId) {
+    await api.post(`/admin/memberships/${membershipId}/invoices/renew`);
+    loadPendingInvoices();
+  }
 
   return (
     <div className="max-w-6xl mx-auto px-5 py-12">
       <h1 className="font-display text-3xl text-ink mb-8">Admin dashboard</h1>
 
       <div className="flex gap-6 border-b border-ink/10 mb-8 overflow-x-auto">
-        {["overview", "partners", "priority-access", "services", "cities", "team", "customers", "bookings", "complaints"].map((t) => (
+        {["overview", "partners", "priority-access", "membership", "services", "cities", "team", "customers", "bookings", "complaints"].map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -235,7 +277,7 @@ export default function AdminDashboard() {
               tab === t ? "border-violet text-violet" : "border-transparent text-ink/50"
             }`}
           >
-            {t === "bookings" ? "All bookings" : t === "priority-access" ? "Priority Access" : t}
+            {t === "bookings" ? "All bookings" : t === "priority-access" ? "Priority Access" : t === "membership" ? "Memberships" : t}
           </button>
         ))}
       </div>
@@ -343,6 +385,11 @@ export default function AdminDashboard() {
 
       {tab === "priority-access" && (
         <div className="space-y-10">
+          <div className="grid md:grid-cols-2 gap-6">
+            <QuickAddPartnerForm onAdd={quickAddPartner} />
+            <QuickAddAppointmentForm partners={paPartners} onAdd={quickAddAppointment} />
+          </div>
+
           <div>
             <h2 className="font-display text-xl text-ink mb-3">Pending applications</h2>
             {loading && <p className="text-ink/50">Loading…</p>}
@@ -458,6 +505,72 @@ export default function AdminDashboard() {
                 </div>
               ))}
               {paRequests.length === 0 && <p className="text-ink/60">No appointment requests yet.</p>}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {tab === "membership" && (
+        <div className="space-y-10">
+          <QuickAddMembershipForm onAdd={quickAddMembership} />
+
+          <div>
+            <h2 className="font-display text-xl text-ink mb-3">Pending payments</h2>
+            <div className="space-y-3">
+              {pendingInvoices.map((inv) => {
+                const m = memberships.find((mm) => mm.id === inv.membership_id);
+                return (
+                  <div key={inv.id} className="flex items-center justify-between border border-ink/10 rounded-card p-4 flex-wrap gap-3">
+                    <div>
+                      <div className="font-semibold text-ink">{m ? `${m.customer_name} (${m.customer_phone})` : `Membership #${inv.membership_id}`}</div>
+                      <div className="text-sm text-ink/60">₹{inv.amount.toLocaleString("en-IN")} · {new Date(inv.period_start).toLocaleDateString("en-IN")} – {new Date(inv.period_end).toLocaleDateString("en-IN")}</div>
+                    </div>
+                    <button onClick={() => markInvoicePaid(inv.id)} className="text-xs font-semibold px-3 py-1.5 rounded-full bg-violet/15 text-magenta">
+                      Mark Paid
+                    </button>
+                  </div>
+                );
+              })}
+              {pendingInvoices.length === 0 && <p className="text-ink/60">No pending payments.</p>}
+            </div>
+          </div>
+
+          <div>
+            <h2 className="font-display text-xl text-ink mb-3">All members</h2>
+            {loading && <p className="text-ink/50">Loading…</p>}
+            <div className="space-y-3">
+              {memberships.map((m) => (
+                <div key={m.id} className="border border-ink/10 rounded-card p-5">
+                  <div className="flex justify-between items-start gap-3 flex-wrap">
+                    <div>
+                      <div className="font-semibold text-ink">
+                        {m.customer_name} <span className="text-xs font-normal text-ink/50">· {m.customer_phone}</span>
+                      </div>
+                      <div className="text-sm text-ink/60 capitalize">
+                        {m.member_code} · {m.plan} · ₹{m.monthly_price_snapshot.toLocaleString("en-IN")}/mo · {m.family_member_count} family member(s)
+                      </div>
+                      {m.next_billing_date && (
+                        <div className="text-xs text-ink/50 mt-1">Next billing {new Date(m.next_billing_date).toLocaleDateString("en-IN")}</div>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <select
+                        value={m.status}
+                        onChange={(e) => updateMembershipStatus(m.id, e.target.value)}
+                        className="text-xs rounded-full border border-ink/15 px-3 py-1.5 capitalize"
+                      >
+                        {["pending", "active", "paused", "cancelled", "expired"].map((s) => (
+                          <option key={s} value={s}>{s}</option>
+                        ))}
+                      </select>
+                      <button onClick={() => renewInvoice(m.id)} className="text-xs font-semibold px-3 py-1.5 rounded-full bg-ink/10 text-ink/70">
+                        Generate next invoice
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {!loading && memberships.length === 0 && <p className="text-ink/60">No members yet.</p>}
             </div>
           </div>
         </div>
@@ -965,5 +1078,229 @@ function Input({ label, ...props }) {
       {label}
       <input {...props} className="mt-1 w-full text-sm border border-ink/15 rounded-lg px-3 py-2" />
     </label>
+  );
+}
+
+function QuickAddPartnerForm({ onAdd }) {
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState({
+    partner_type: "doctor", name: "", city: "", area: "", contact_number: "",
+    whatsapp: "", specialty: "", departments: "", consultation_fee: "", priority_fee: "",
+  });
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  function set(field) {
+    return (e) => setForm((f) => ({ ...f, [field]: e.target.value }));
+  }
+
+  async function submit(e) {
+    e.preventDefault();
+    setError("");
+    setSaving(true);
+    try {
+      await onAdd({
+        ...form,
+        consultation_fee: form.consultation_fee ? Number(form.consultation_fee) : null,
+        priority_fee: form.priority_fee ? Number(form.priority_fee) : null,
+      });
+      setForm({ partner_type: "doctor", name: "", city: "", area: "", contact_number: "", whatsapp: "", specialty: "", departments: "", consultation_fee: "", priority_fee: "" });
+      setOpen(false);
+    } catch (err) {
+      setError(err.response?.data?.detail || "Could not add this partner.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!open) {
+    return (
+      <button onClick={() => setOpen(true)} className="self-start text-sm font-semibold px-4 py-2 rounded-full bg-violet text-white">
+        + Add Partner directly
+      </button>
+    );
+  }
+
+  return (
+    <form onSubmit={submit} className="border border-ink/10 rounded-card p-5 grid sm:grid-cols-2 gap-3 h-fit">
+      <div className="sm:col-span-2 font-display text-base text-ink">Add Partner directly</div>
+      <p className="sm:col-span-2 text-xs text-ink/50 -mt-2">For a doctor/hospital you already verified over WhatsApp or a call — goes live immediately, no application review needed.</p>
+      <label className="text-sm text-ink/70 block">
+        Type
+        <select value={form.partner_type} onChange={set("partner_type")} className="mt-1 w-full text-sm border border-ink/15 rounded-lg px-3 py-2 bg-white">
+          <option value="doctor">Doctor</option>
+          <option value="hospital">Hospital</option>
+        </select>
+      </label>
+      <Input label="Name" value={form.name} onChange={set("name")} required />
+      <Input label="City" value={form.city} onChange={set("city")} required />
+      <Input label="Area (optional)" value={form.area} onChange={set("area")} />
+      <Input label="Contact number" value={form.contact_number} onChange={set("contact_number")} required />
+      <Input label="WhatsApp (optional)" value={form.whatsapp} onChange={set("whatsapp")} />
+      {form.partner_type === "doctor" ? (
+        <Input label="Specialty" value={form.specialty} onChange={set("specialty")} />
+      ) : (
+        <Input label="Departments (comma-separated)" value={form.departments} onChange={set("departments")} />
+      )}
+      <Input label="Consultation fee (₹, optional)" type="number" value={form.consultation_fee} onChange={set("consultation_fee")} />
+      <Input label="Priority fee (₹, optional)" type="number" value={form.priority_fee} onChange={set("priority_fee")} />
+      {error && <p className="sm:col-span-2 text-sm text-clay">{error}</p>}
+      <div className="sm:col-span-2 flex gap-2">
+        <button disabled={saving} className="text-sm font-semibold px-4 py-2 rounded-full bg-violet text-white disabled:opacity-60">
+          {saving ? "Saving…" : "Add & publish"}
+        </button>
+        <button type="button" onClick={() => setOpen(false)} className="text-sm font-semibold px-4 py-2 rounded-full bg-ink/10 text-ink/70">
+          Cancel
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function QuickAddAppointmentForm({ partners, onAdd }) {
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState({
+    partner_id: "", patient_name: "", patient_phone: "", preferred_time: "",
+    status: "confirmed", concierge_notes: "",
+  });
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  function set(field) {
+    return (e) => setForm((f) => ({ ...f, [field]: e.target.value }));
+  }
+
+  async function submit(e) {
+    e.preventDefault();
+    setError("");
+    setSaving(true);
+    try {
+      await onAdd({ ...form, partner_id: Number(form.partner_id) });
+      setForm({ partner_id: "", patient_name: "", patient_phone: "", preferred_time: "", status: "confirmed", concierge_notes: "" });
+      setOpen(false);
+    } catch (err) {
+      setError(err.response?.data?.detail || "Could not log this appointment request.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!open) {
+    return (
+      <button onClick={() => setOpen(true)} className="self-start text-sm font-semibold px-4 py-2 rounded-full bg-violet text-white">
+        + Log Appointment Request
+      </button>
+    );
+  }
+
+  return (
+    <form onSubmit={submit} className="border border-ink/10 rounded-card p-5 grid sm:grid-cols-2 gap-3 h-fit">
+      <div className="sm:col-span-2 font-display text-base text-ink">Log Appointment Request</div>
+      <p className="sm:col-span-2 text-xs text-ink/50 -mt-2">For a patient who requested this over WhatsApp/call — tracked here even without a site login.</p>
+      <label className="sm:col-span-2 text-sm text-ink/70 block">
+        Partner
+        <select value={form.partner_id} onChange={set("partner_id")} required className="mt-1 w-full text-sm border border-ink/15 rounded-lg px-3 py-2 bg-white">
+          <option value="">Select partner...</option>
+          {partners.map((p) => <option key={p.id} value={p.id}>{p.name} — {p.city}</option>)}
+        </select>
+      </label>
+      <Input label="Patient name" value={form.patient_name} onChange={set("patient_name")} required />
+      <Input label="Patient phone" value={form.patient_phone} onChange={set("patient_phone")} required />
+      <Input label="Preferred time" value={form.preferred_time} onChange={set("preferred_time")} placeholder="e.g. Tomorrow morning" />
+      <label className="text-sm text-ink/70 block">
+        Status
+        <select value={form.status} onChange={set("status")} className="mt-1 w-full text-sm border border-ink/15 rounded-lg px-3 py-2 bg-white">
+          <option value="requested">Requested (not yet confirmed)</option>
+          <option value="confirmed">Confirmed</option>
+        </select>
+      </label>
+      <label className="sm:col-span-2 text-sm text-ink/70 block">
+        Concierge notes (fee, confirmed slot, etc.)
+        <textarea value={form.concierge_notes} onChange={set("concierge_notes")} className="mt-1 w-full text-sm border border-ink/15 rounded-lg px-3 py-2" />
+      </label>
+      {error && <p className="sm:col-span-2 text-sm text-clay">{error}</p>}
+      <div className="sm:col-span-2 flex gap-2">
+        <button disabled={saving} className="text-sm font-semibold px-4 py-2 rounded-full bg-violet text-white disabled:opacity-60">
+          {saving ? "Saving…" : "Log request"}
+        </button>
+        <button type="button" onClick={() => setOpen(false)} className="text-sm font-semibold px-4 py-2 rounded-full bg-ink/10 text-ink/70">
+          Cancel
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function QuickAddMembershipForm({ onAdd }) {
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState({ full_name: "", phone: "", plan: "care", mark_as_paid: true });
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [result, setResult] = useState(null);
+
+  function set(field) {
+    return (e) => setForm((f) => ({ ...f, [field]: e.target.value }));
+  }
+
+  async function submit(e) {
+    e.preventDefault();
+    setError("");
+    setSaving(true);
+    setResult(null);
+    try {
+      const data = await onAdd(form);
+      setResult(data);
+      setForm({ full_name: "", phone: "", plan: "care", mark_as_paid: true });
+    } catch (err) {
+      setError(err.response?.data?.detail || "Could not add this membership.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!open) {
+    return (
+      <button onClick={() => setOpen(true)} className="self-start text-sm font-semibold px-4 py-2 rounded-full bg-violet text-white">
+        + Add Membership directly
+      </button>
+    );
+  }
+
+  return (
+    <div className="max-w-lg">
+      <form onSubmit={submit} className="border border-ink/10 rounded-card p-5 grid sm:grid-cols-2 gap-3">
+        <div className="sm:col-span-2 font-display text-base text-ink">Add Membership directly</div>
+        <p className="sm:col-span-2 text-xs text-ink/50 -mt-2">For a member who signed up over WhatsApp/call. If they don't have a site account yet, one is created with a temporary password.</p>
+        <Input label="Full name" value={form.full_name} onChange={set("full_name")} required />
+        <Input label="Phone number" value={form.phone} onChange={set("phone")} required />
+        <label className="text-sm text-ink/70 block">
+          Plan
+          <select value={form.plan} onChange={set("plan")} className="mt-1 w-full text-sm border border-ink/15 rounded-lg px-3 py-2 bg-white">
+            <option value="care">Care — ₹1,999/mo</option>
+            <option value="family">Family — ₹4,999/mo</option>
+            <option value="nri">NRI Care — ₹7,999/mo</option>
+          </select>
+        </label>
+        <label className="flex items-center gap-2 text-sm text-ink/70 mt-6">
+          <input type="checkbox" checked={form.mark_as_paid} onChange={(e) => setForm((f) => ({ ...f, mark_as_paid: e.target.checked }))} />
+          Payment already confirmed (via WhatsApp/UPI)
+        </label>
+        {error && <p className="sm:col-span-2 text-sm text-clay">{error}</p>}
+        <div className="sm:col-span-2 flex gap-2">
+          <button disabled={saving} className="text-sm font-semibold px-4 py-2 rounded-full bg-violet text-white disabled:opacity-60">
+            {saving ? "Saving…" : "Add member"}
+          </button>
+          <button type="button" onClick={() => setOpen(false)} className="text-sm font-semibold px-4 py-2 rounded-full bg-ink/10 text-ink/70">
+            Close
+          </button>
+        </div>
+      </form>
+      {result?.account_created && (
+        <div className="mt-3 bg-mist rounded-lg p-4 text-sm text-ink/70">
+          New account created. Share this temporary password with the member so they can log in:{" "}
+          <strong className="text-ink">{result.temp_password}</strong>
+        </div>
+      )}
+    </div>
   );
 }
