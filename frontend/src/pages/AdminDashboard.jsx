@@ -34,6 +34,9 @@ export default function AdminDashboard() {
   const [services, setServices] = useState([]);
   const [cities, setCities] = useState([]);
   const [team, setTeam] = useState([]);
+  const [paApplications, setPaApplications] = useState([]);
+  const [paPartners, setPaPartners] = useState([]);
+  const [paRequests, setPaRequests] = useState([]);
   const [tab, setTab] = useState("overview");
   const [loading, setLoading] = useState(false);
 
@@ -81,6 +84,24 @@ export default function AdminDashboard() {
     setTeam(data);
     setLoading(false);
   }
+  async function loadPAApplications() {
+    setLoading(true);
+    const { data } = await api.get("/admin/priority-access/applications", { params: { status_filter: "pending" } });
+    setPaApplications(data);
+    setLoading(false);
+  }
+  async function loadPAPartners() {
+    setLoading(true);
+    const { data } = await api.get("/admin/priority-access/partners");
+    setPaPartners(data);
+    setLoading(false);
+  }
+  async function loadPARequests() {
+    setLoading(true);
+    const { data } = await api.get("/admin/priority-access/appointment-requests");
+    setPaRequests(data);
+    setLoading(false);
+  }
 
   useEffect(() => { loadStats(); loadAgents(); }, []);
 
@@ -91,6 +112,7 @@ export default function AdminDashboard() {
     if (tab === "services" && services.length === 0) loadServices();
     if (tab === "cities" && cities.length === 0) loadCities();
     if (tab === "team" && team.length === 0) loadTeam();
+    if (tab === "priority-access") { loadPAApplications(); loadPAPartners(); loadPARequests(); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
 
@@ -180,12 +202,32 @@ export default function AdminDashboard() {
     }
   }
 
+  // --- Priority Access Network ---
+  async function reviewApplication(id, approve) {
+    const notes = window.prompt(approve ? "Verification notes (optional):" : "Reason for rejection (optional):") || "";
+    try {
+      await api.post(`/admin/priority-access/applications/${id}/review`, { approve, review_notes: notes });
+      loadPAApplications();
+      loadPAPartners();
+    } catch (err) {
+      alert(err.response?.data?.detail || "Could not review this application.");
+    }
+  }
+  async function updatePartner(id, payload) {
+    await api.patch(`/admin/priority-access/partners/${id}`, payload);
+    loadPAPartners();
+  }
+  async function updateAppointmentRequest(id, payload) {
+    await api.patch(`/admin/priority-access/appointment-requests/${id}`, payload);
+    loadPARequests();
+  }
+
   return (
     <div className="max-w-6xl mx-auto px-5 py-12">
       <h1 className="font-display text-3xl text-ink mb-8">Admin dashboard</h1>
 
       <div className="flex gap-6 border-b border-ink/10 mb-8 overflow-x-auto">
-        {["overview", "partners", "services", "cities", "team", "customers", "bookings", "complaints"].map((t) => (
+        {["overview", "partners", "priority-access", "services", "cities", "team", "customers", "bookings", "complaints"].map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -193,7 +235,7 @@ export default function AdminDashboard() {
               tab === t ? "border-violet text-violet" : "border-transparent text-ink/50"
             }`}
           >
-            {t === "bookings" ? "All bookings" : t}
+            {t === "bookings" ? "All bookings" : t === "priority-access" ? "Priority Access" : t}
           </button>
         ))}
       </div>
@@ -296,6 +338,128 @@ export default function AdminDashboard() {
             <TeamRow key={m.id} member={m} isSelf={user?.user_id === m.id} onUpdate={updateTeamMember} onDelete={deleteTeamMember} />
           ))}
           {!loading && team.length === 0 && <p className="text-ink/60">No team members yet.</p>}
+        </div>
+      )}
+
+      {tab === "priority-access" && (
+        <div className="space-y-10">
+          <div>
+            <h2 className="font-display text-xl text-ink mb-3">Pending applications</h2>
+            {loading && <p className="text-ink/50">Loading…</p>}
+            <div className="space-y-3">
+              {paApplications.map((a) => (
+                <div key={a.id} className="border border-ink/10 rounded-card p-5">
+                  <div className="flex justify-between items-start gap-3 flex-wrap">
+                    <div>
+                      <div className="font-semibold text-ink">
+                        {a.name} <span className="text-xs font-normal text-ink/50 capitalize">({a.partner_type})</span>
+                      </div>
+                      <div className="text-sm text-ink/60">
+                        {a.city}{a.area ? `, ${a.area}` : ""} · {a.contact_number}
+                        {a.specialty && ` · ${a.specialty}`}
+                        {a.departments && ` · ${a.departments}`}
+                      </div>
+                      {(a.consultation_fee || a.priority_fee) && (
+                        <div className="text-xs text-ink/50 mt-1">
+                          {a.consultation_fee && `Consultation ₹${a.consultation_fee}`}
+                          {a.priority_fee && ` · Priority fee ₹${a.priority_fee}`}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={() => reviewApplication(a.id, true)} className="text-xs font-semibold px-3 py-1.5 rounded-full bg-violet/15 text-magenta">
+                        Approve
+                      </button>
+                      <button onClick={() => reviewApplication(a.id, false)} className="text-xs font-semibold px-3 py-1.5 rounded-full bg-clay/15 text-clay">
+                        Reject
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {!loading && paApplications.length === 0 && <p className="text-ink/60">No pending applications.</p>}
+            </div>
+          </div>
+
+          <div>
+            <h2 className="font-display text-xl text-ink mb-3">Active partners</h2>
+            <div className="space-y-3">
+              {paPartners.map((p) => (
+                <div key={p.id} className="border border-ink/10 rounded-card p-5">
+                  <div className="flex justify-between items-start gap-3 flex-wrap">
+                    <div>
+                      <div className="font-semibold text-ink">
+                        {p.name} <span className="text-xs font-normal text-ink/50 capitalize">({p.partner_type})</span>
+                      </div>
+                      <div className="text-sm text-ink/60">{p.city}{p.area ? `, ${p.area}` : ""} · {p.specialty || p.departments || "—"}</div>
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <select
+                        value={p.partner_status}
+                        onChange={(e) => updatePartner(p.id, { partner_status: e.target.value })}
+                        className="text-xs rounded-full border border-ink/15 px-3 py-1.5"
+                      >
+                        <option value="active">🟢 Active</option>
+                        <option value="temporarily_unavailable">🟡 Temporarily unavailable</option>
+                        <option value="inactive">🔴 Inactive</option>
+                      </select>
+                      <select
+                        value={p.priority_access_status}
+                        onChange={(e) => updatePartner(p.id, { priority_access_status: e.target.value })}
+                        className="text-xs rounded-full border border-ink/15 px-3 py-1.5"
+                      >
+                        <option value="available">Priority: Available</option>
+                        <option value="not_available">Priority: Not available</option>
+                        <option value="by_request">Priority: By request</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {paPartners.length === 0 && <p className="text-ink/60">No approved partners yet.</p>}
+            </div>
+          </div>
+
+          <div>
+            <h2 className="font-display text-xl text-ink mb-3">Appointment requests</h2>
+            <div className="space-y-3">
+              {paRequests.map((r) => (
+                <div key={r.id} className="border border-ink/10 rounded-card p-5">
+                  <div className="flex justify-between items-start gap-3 flex-wrap">
+                    <div>
+                      <div className="font-semibold text-ink">{r.patient_name} <span className="text-xs font-normal text-ink/50">· {r.patient_phone}</span></div>
+                      <div className="text-sm text-ink/60">{r.preferred_time || "No preferred time given"}</div>
+                      {r.notes && <div className="text-sm text-ink/50 mt-1">{r.notes}</div>}
+                      {r.concierge_notes && <div className="text-sm text-ink/70 mt-1 bg-mist rounded p-2">{r.concierge_notes}</div>}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-semibold text-violet capitalize">{r.status}</span>
+                      {r.status === "requested" && (
+                        <>
+                          <button
+                            onClick={() => {
+                              const notes = window.prompt("Confirmation details for the patient (fee, slot, priority fee):") || "";
+                              updateAppointmentRequest(r.id, { status: "confirmed", concierge_notes: notes });
+                            }}
+                            className="text-xs font-semibold px-3 py-1.5 rounded-full bg-violet/15 text-magenta"
+                          >
+                            Confirm
+                          </button>
+                          <button
+                            onClick={() => updateAppointmentRequest(r.id, { status: "cancelled" })}
+                            className="text-xs font-semibold px-3 py-1.5 rounded-full bg-clay/15 text-clay"
+                          >
+                            Cancel
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {paRequests.length === 0 && <p className="text-ink/60">No appointment requests yet.</p>}
+            </div>
+          </div>
         </div>
       )}
 

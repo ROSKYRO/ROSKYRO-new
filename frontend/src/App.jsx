@@ -17,6 +17,9 @@ import AdminDashboard from "./pages/AdminDashboard";
 import AdminLogin from "./pages/AdminLogin";
 import MembershipSignup from "./pages/MembershipSignup";
 import MemberDashboard from "./pages/MemberDashboard";
+import PriorityAccess from "./pages/PriorityAccess";
+import PriorityAccessProfile from "./pages/PriorityAccessProfile";
+import PriorityAccessApply from "./pages/PriorityAccessApply";
 
 export default function App() {
   return (
@@ -35,6 +38,9 @@ export default function App() {
           <Route path="/my-bookings" element={<RequireAuth><MyBookings /></RequireAuth>} />
           <Route path="/membership/join" element={<MembershipSignup />} />
           <Route path="/member" element={<RequireAuth><MemberDashboard /></RequireAuth>} />
+          <Route path="/priority-access" element={<PriorityAccess />} />
+          <Route path="/priority-access/apply" element={<PriorityAccessApply />} />
+          <Route path="/priority-access/:id" element={<PriorityAccessProfile />} />
           {/* Not linked from Navbar/anywhere on purpose — reachable only if you know the URL. */}
           <Route path={ADMIN_LOGIN_PATH} element={<AdminLogin />} />
           <Route path="/admin" element={<RequireAdmin><AdminDashboard /></RequireAdmin>} />
