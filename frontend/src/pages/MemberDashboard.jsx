@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import api from "../api/client";
+import { WHATSAPP_SUPPORT_NUMBER, waLink } from "../config";
 
 const TABS = ["Overview", "Family", "Care History", "Documents", "Transport", "Billing"];
 
@@ -132,7 +133,7 @@ function SummaryCard({ label, value }) {
 }
 
 function FamilyTab({ members, maxMembers, onChange }) {
-  const [form, setForm] = useState({ full_name: "", relation: "", age: "", phone: "", notes: "" });
+  const [form, setForm] = useState({ full_name: "", relation: "", age: "", phone: "" });
   const [error, setError] = useState("");
 
   async function add(e) {
@@ -140,7 +141,7 @@ function FamilyTab({ members, maxMembers, onChange }) {
     setError("");
     try {
       await api.post("/membership/family", { ...form, age: form.age ? Number(form.age) : null });
-      setForm({ full_name: "", relation: "", age: "", phone: "", notes: "" });
+      setForm({ full_name: "", relation: "", age: "", phone: "" });
       onChange();
     } catch (err) {
       setError(err.response?.data?.detail || "Could not add family member.");
@@ -177,14 +178,16 @@ function FamilyTab({ members, maxMembers, onChange }) {
             className="rounded-lg border border-ink/15 px-3 py-2" />
           <input placeholder="Phone (optional)" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })}
             className="rounded-lg border border-ink/15 px-3 py-2" />
-          <textarea placeholder="Notes (conditions, allergies, etc.)" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })}
-            className="rounded-lg border border-ink/15 px-3 py-2 sm:col-span-2" />
           {error && <p className="text-sm text-clay sm:col-span-2">{error}</p>}
           <button className="sm:col-span-2 py-2.5 rounded-full bg-ink text-parchment font-semibold">Add family member</button>
         </form>
       ) : (
         <p className="text-sm text-ink/50">Your plan covers up to {maxMembers} member(s). Message us on WhatsApp to discuss upgrading.</p>
       )}
+      <p className="text-xs text-ink/40 mt-3">
+        Please don't add health conditions or allergies here — share any medical detail with your
+        concierge directly on WhatsApp so it isn't stored on the site.
+      </p>
     </div>
   );
 }
@@ -219,11 +222,16 @@ function CareRequestsTab({ requests, familyMembers, onChange }) {
         <input placeholder="What do you need? (e.g. Book cardiologist)" required value={form.title}
           onChange={(e) => setForm({ ...form, title: e.target.value })}
           className="rounded-lg border border-ink/15 px-3 py-2 sm:col-span-2" />
-        <textarea placeholder="Any details for the concierge" value={form.description}
+        <textarea placeholder="Reason for the visit only (e.g. 'follow-up visit') — please don't include diagnosis or report details here"
+          value={form.description}
           onChange={(e) => setForm({ ...form, description: e.target.value })}
           className="rounded-lg border border-ink/15 px-3 py-2 sm:col-span-2" />
         <button className="sm:col-span-2 py-2.5 rounded-full bg-brand-gradient text-white font-semibold">Send to concierge</button>
       </form>
+      <p className="text-xs text-ink/40 -mt-5 mb-8">
+        Sharing a diagnosis or medical report? Send it to your concierge on WhatsApp instead — this
+        form is only for coordinating the appointment.
+      </p>
 
       <div className="space-y-3">
         {requests.map((r) => (
@@ -243,17 +251,26 @@ function CareRequestsTab({ requests, familyMembers, onChange }) {
   );
 }
 
+const DOC_STATUS_LABEL = {
+  pending: "Waiting for you to send it on WhatsApp",
+  shared_with_concierge: "Received by concierge",
+  resolved: "Resolved",
+};
+
 function DocumentsTab({ documents, familyMembers, onChange }) {
-  const [form, setForm] = useState({ family_member_id: "", title: "", doc_type: "other", file_url: "", notes: "" });
+  const [form, setForm] = useState({ family_member_id: "", title: "", doc_type: "other" });
 
   async function add(e) {
     e.preventDefault();
-    await api.post("/membership/documents", {
+    const payload = {
       ...form,
       family_member_id: form.family_member_id ? Number(form.family_member_id) : null,
-    });
-    setForm({ family_member_id: "", title: "", doc_type: "other", file_url: "", notes: "" });
+    };
+    await api.post("/membership/documents", payload);
+    const waText = `Hi ROSKYRO, sharing a document for my Care vault: "${form.title}" (${form.doc_type.replace("_", " ")}).`;
+    setForm({ family_member_id: "", title: "", doc_type: "other" });
     onChange();
+    window.open(waLink(WHATSAPP_SUPPORT_NUMBER, waText), "_blank", "noreferrer");
   }
 
   async function remove(id) {
@@ -263,12 +280,17 @@ function DocumentsTab({ documents, familyMembers, onChange }) {
 
   return (
     <div>
+      <p className="text-xs text-ink/40 mb-4">
+        This document is shared directly with our concierge team over WhatsApp — the file itself
+        (and any description of it) is never stored permanently in our system. This list only
+        tracks what's been shared and its status.
+      </p>
       <div className="space-y-3 mb-8">
         {documents.map((d) => (
           <div key={d.id} className="flex items-center justify-between bg-white border border-ink/10 rounded-lg px-4 py-3">
             <div>
               <div className="font-medium text-ink">{d.title} <span className="text-xs text-ink/40">— {d.doc_type}</span></div>
-              {d.file_url && <a href={d.file_url} target="_blank" rel="noreferrer" className="text-xs text-violet">Open link</a>}
+              <div className="text-xs text-ink/50">{DOC_STATUS_LABEL[d.status] || d.status}</div>
             </div>
             <button onClick={() => remove(d.id)} className="text-xs text-clay font-semibold">Remove</button>
           </div>
@@ -277,7 +299,8 @@ function DocumentsTab({ documents, familyMembers, onChange }) {
       </div>
 
       <form onSubmit={add} className="grid sm:grid-cols-2 gap-3 bg-mist rounded-card p-5">
-        <input placeholder="Document title" required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })}
+        <input placeholder="Document title (e.g. Blood test report)" required value={form.title}
+          onChange={(e) => setForm({ ...form, title: e.target.value })}
           className="rounded-lg border border-ink/15 px-3 py-2" />
         <select value={form.doc_type} onChange={(e) => setForm({ ...form, doc_type: e.target.value })}
           className="rounded-lg border border-ink/15 px-3 py-2">
@@ -288,14 +311,11 @@ function DocumentsTab({ documents, familyMembers, onChange }) {
           <option value="">For myself</option>
           {familyMembers.map((m) => <option key={m.id} value={m.id}>{m.full_name}</option>)}
         </select>
-        <input placeholder="Link to file (Drive/WhatsApp share link, optional for now)" value={form.file_url}
-          onChange={(e) => setForm({ ...form, file_url: e.target.value })}
-          className="rounded-lg border border-ink/15 px-3 py-2 sm:col-span-2" />
-        <button className="sm:col-span-2 py-2.5 rounded-full bg-ink text-parchment font-semibold">Add to vault</button>
+        <button className="sm:col-span-2 py-2.5 rounded-full bg-ink text-parchment font-semibold">Add ticket &amp; open WhatsApp</button>
       </form>
       <p className="text-xs text-ink/40 mt-3">
-        Direct file upload isn't wired up yet — paste a link for now, or share the file with your
-        concierge on WhatsApp and we'll file it here for you.
+        Submitting opens WhatsApp so you can send the actual file straight to your concierge — we
+        only keep the title and status here, never the document or its contents.
       </p>
     </div>
   );

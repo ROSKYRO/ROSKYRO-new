@@ -6,6 +6,7 @@ const CLAUSES = [
   { icon: "🤝", title: "Who can see it", body: "Only the ROSKYRO team and the verified Partner assigned to you. We never sell or rent your data to advertisers or third parties." },
   { icon: "💬", title: "WhatsApp & payments", body: "Messages go through WhatsApp under their privacy terms. Payments are made directly via UPI — we don't store your bank or card details." },
   { icon: "🗂️", title: "How long we keep it", body: "We keep booking records for as long as needed for service, accounts, and legal requirements, then remove what we no longer need." },
+  { icon: "🩺", title: "Health information (Concierge membership)", body: "For ROSKYRO Concierge members, medical documents and reports are shared directly with your concierge over WhatsApp — we don't store the file or its contents in our database, only a title and status so both sides can track it." },
   { icon: "✋", title: "Your choices", body: "You can ask us what we hold about you, correct it, or request deletion (where law allows). Just email or call us — we'll help." },
 ];
 
