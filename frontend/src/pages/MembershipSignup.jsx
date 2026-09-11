@@ -18,6 +18,7 @@ export default function MembershipSignup() {
   const [plan, setPlan] = useState(PLANS.some((p) => p.id === preselected) ? preselected : "care");
   const [mode, setMode] = useState("login"); // login | signup — only shown if not already logged in
   const [form, setForm] = useState({ full_name: "", phone: "", password: "" });
+  const [agreedToInfo, setAgreedToInfo] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -50,9 +51,16 @@ export default function MembershipSignup() {
     <div className="max-w-xl mx-auto px-5 py-20">
       <span className="text-xs font-semibold tracking-wide text-magenta">Become a member</span>
       <h1 className="font-display text-3xl text-ink mt-2 mb-2">Join ROSKYRO Concierge</h1>
-      <p className="text-ink/60 mb-8">
+      <p className="text-ink/60 mb-4">
         Pick a plan, and a dedicated concierge starts coordinating your healthcare from day one.
       </p>
+      <Link
+        to="/membership/info"
+        target="_blank"
+        className="inline-flex items-center gap-1.5 text-sm font-semibold text-violet hover:text-magenta transition-colors mb-8"
+      >
+        📄 Read full membership information first — plans, billing, free Assist visits &amp; privacy
+      </Link>
 
       <div className="grid sm:grid-cols-3 gap-3 mb-8">
         {PLANS.map((p) => (
@@ -123,7 +131,25 @@ export default function MembershipSignup() {
 
         {error && <p className="text-sm text-clay">{error}</p>}
 
-        <button disabled={loading}
+        <label className="flex items-start gap-2.5 text-sm text-ink/70">
+          <input
+            type="checkbox"
+            required
+            checked={agreedToInfo}
+            onChange={(e) => setAgreedToInfo(e.target.checked)}
+            className="mt-0.5"
+          />
+          <span>
+            I've read the{" "}
+            <Link to="/membership/info" target="_blank" className="text-violet font-semibold">
+              Membership Information page
+            </Link>{" "}
+            — including plan inclusions, free Assist-visit quota, billing/cancellation terms, and the privacy
+            policy — and agree to it.
+          </span>
+        </label>
+
+        <button disabled={loading || !agreedToInfo}
           className="w-full py-3 rounded-full bg-brand-gradient text-white font-semibold hover:opacity-90 transition-opacity disabled:opacity-60">
           {loading ? "Setting up your membership..." : "Confirm membership"}
         </button>
@@ -134,7 +160,7 @@ export default function MembershipSignup() {
         WhatsApp, same as any ROSKYRO booking. No card details needed here.
       </p>
       <p className="text-sm text-ink/60 mt-4">
-        Prefer to talk first? <Link to="/#membership" className="text-violet font-medium">See plan details</Link>{" "}
+        Prefer to talk first? <Link to="/membership/info" className="text-violet font-medium">See plan details</Link>{" "}
         or message us on WhatsApp.
       </p>
     </div>

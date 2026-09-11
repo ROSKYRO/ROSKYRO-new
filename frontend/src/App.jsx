@@ -16,6 +16,7 @@ import BlogPost from "./pages/BlogPost";
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminLogin from "./pages/AdminLogin";
 import MembershipSignup from "./pages/MembershipSignup";
+import MembershipInfo from "./pages/MembershipInfo";
 import MemberDashboard from "./pages/MemberDashboard";
 import PriorityAccess from "./pages/PriorityAccess";
 import PriorityAccessProfile from "./pages/PriorityAccessProfile";
@@ -37,6 +38,7 @@ export default function App() {
           <Route path="/become-a-partner" element={<BecomePartner />} />
           <Route path="/my-bookings" element={<RequireAuth><MyBookings /></RequireAuth>} />
           <Route path="/membership/join" element={<MembershipSignup />} />
+          <Route path="/membership/info" element={<MembershipInfo />} />
           <Route path="/member" element={<RequireAuth><MemberDashboard /></RequireAuth>} />
           <Route path="/priority-access" element={<PriorityAccess />} />
           <Route path="/priority-access/apply" element={<PriorityAccessApply />} />
