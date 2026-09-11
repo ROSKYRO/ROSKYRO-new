@@ -30,10 +30,20 @@ export default function PriorityAccess() {
     <div className="max-w-5xl mx-auto px-5 py-16">
       <span className="text-xs font-semibold tracking-wide text-magenta">Priority Access Network</span>
       <h1 className="font-display text-3xl text-ink mt-2 mb-3">Find a Priority Access partner.</h1>
-      <p className="text-ink/60 mb-8 max-w-2xl">
+      <p className="text-ink/60 mb-4 max-w-2xl">
         Verified doctors and hospitals offering priority appointments through ROSKYRO. Search by
         city and specialty — request a priority appointment and your concierge confirms the rest.
       </p>
+
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-violet/10 rounded-card px-5 py-3 mb-8">
+        <p className="text-sm text-violet font-semibold">
+          🔒 Booking a Priority Appointment is a ROSKYRO Concierge membership benefit — anyone can
+          search the directory below, but confirming an appointment requires an active membership.
+        </p>
+        <Link to="/membership/join" className="text-sm font-semibold text-violet underline whitespace-nowrap">
+          Get Membership →
+        </Link>
+      </div>
 
       <form onSubmit={search} className="grid sm:grid-cols-4 gap-3 mb-10 bg-mist rounded-card p-5">
         <input placeholder="City (e.g. Jabalpur)" value={city} onChange={(e) => setCity(e.target.value)}

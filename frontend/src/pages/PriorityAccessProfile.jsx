@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, Link } from "react-router-dom";
 import api from "../api/client";
 import { useAuth } from "../context/AuthContext";
 
@@ -11,6 +11,8 @@ export default function PriorityAccessProfile() {
   const [form, setForm] = useState({ patient_name: "", patient_phone: "", preferred_time: "", notes: "" });
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState("");
+  // null = still checking, true = active Concierge member, false = not a member
+  const [isMember, setIsMember] = useState(null);
 
   useEffect(() => {
     api.get(`/priority-access/partners/${id}`)
@@ -20,6 +22,16 @@ export default function PriorityAccessProfile() {
 
   useEffect(() => {
     if (user) setForm((f) => ({ ...f, patient_name: user.full_name || "", patient_phone: user.phone || "" }));
+  }, [user]);
+
+  useEffect(() => {
+    // Priority Appointment booking is a ROSKYRO Concierge membership benefit —
+    // check membership status so we can show the membership CTA instead of
+    // the request form for logged-in users who aren't members yet.
+    if (!user) return;
+    api.get("/membership/relationship-officer-quota")
+      .then((r) => setIsMember(Boolean(r.data.is_member) && r.data.status === "active"))
+      .catch(() => setIsMember(false));
   }, [user]);
 
   async function submit(e) {
@@ -89,9 +101,32 @@ export default function PriorityAccessProfile() {
           <p className="text-xs text-ink/50 mb-4">
             Your concierge confirms availability and gets back to you with the confirmed slot and fees.
           </p>
+          <p className="text-xs font-semibold text-violet bg-violet/10 rounded-lg px-3 py-2 mb-4">
+            🔒 This is a ROSKYRO Concierge membership benefit — appointment booking through Priority
+            Access is available only to active Concierge members.
+          </p>
 
           {!user ? (
             <p className="text-sm text-ink/60">Please <a href="/login" className="text-violet font-semibold">log in</a> to request an appointment.</p>
+          ) : isMember === null ? (
+            <p className="text-sm text-ink/50">Checking your membership status...</p>
+          ) : isMember === false ? (
+            <div className="space-y-3">
+              <p className="text-sm text-ink/70">
+                You don't have an active ROSKYRO Concierge membership yet. Join a plan to unlock
+                Priority Appointment booking, along with your monthly free Relationship Officer
+                visits and dedicated concierge support.
+              </p>
+              <Link
+                to="/membership/join"
+                className="block text-center w-full py-2.5 rounded-full bg-brand-gradient text-white text-sm font-semibold"
+              >
+                Get ROSKYRO Concierge Membership
+              </Link>
+              <Link to="/membership/info" className="block text-center text-xs text-violet font-semibold">
+                See membership plans &amp; pricing
+              </Link>
+            </div>
           ) : submitted ? (
             <p className="text-sm text-violet font-semibold">Request sent! Your concierge will confirm shortly on WhatsApp.</p>
           ) : (
