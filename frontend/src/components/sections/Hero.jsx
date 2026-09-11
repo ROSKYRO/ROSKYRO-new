@@ -33,7 +33,7 @@ export default function Hero() {
             rel="noreferrer"
             className="px-6 py-3 rounded-full border border-ink/15 font-semibold hover:border-violet hover:text-violet transition-colors"
           >
-            Hire an Assist
+            Hire a Relationship Officer
           </a>
         </div>
         <p className="text-sm text-ink/50 mt-6">

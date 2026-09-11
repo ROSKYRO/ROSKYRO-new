@@ -3,7 +3,7 @@ import api from "../api/client";
 import { useAuth } from "../context/AuthContext";
 
 const STAGE_OPTIONS = [
-  ["assist_assigned", "Assist Assigned"],
+  ["relationship_officer_assigned", "Relationship Officer Assigned"],
   ["on_the_way", "On the Way"],
   ["arrived", "Arrived — Meet & Greet / Navigation / Wheelchair"],
   ["registration", "Registration"],
@@ -19,7 +19,7 @@ const STAGE_LABEL = Object.fromEntries(STAGE_OPTIONS);
 const TABS = [
   ["today", "Today's Patients"],
   ["active", "Active Journeys"],
-  ["assist", "ROSKYRO Assist"],
+  ["relationship_officer", "ROSKYRO Relationship Officer"],
   ["admission", "Admission Queue"],
   ["discharge", "Discharge Queue"],
   ["updates", "Family Updates"],
@@ -65,8 +65,8 @@ export default function HospitalDashboard() {
   useEffect(() => { loadDashboard(); }, []);
 
   useEffect(() => {
-    if (["today", "active", "assist", "admission", "discharge", "updates"].includes(tab)) {
-      const queueMap = { today: "today", active: "active", assist: "active", admission: "admission", discharge: "discharge", updates: null };
+    if (["today", "active", "relationship_officer", "admission", "discharge", "updates"].includes(tab)) {
+      const queueMap = { today: "today", active: "active", relationship_officer: "active", admission: "admission", discharge: "discharge", updates: null };
       loadJourneys(queueMap[tab]);
     }
     if (tab === "feedback") loadFeedback();
@@ -78,7 +78,7 @@ export default function HospitalDashboard() {
     await api.post(`/hospital-console/journeys/${bookingId}/stage`, { stage, note: note || null });
     loadDashboard();
     loadJourneys(
-      { today: "today", active: "active", assist: "active", admission: "admission", discharge: "discharge", updates: null }[tab]
+      { today: "today", active: "active", relationship_officer: "active", admission: "admission", discharge: "discharge", updates: null }[tab]
     );
   }
 
@@ -125,9 +125,9 @@ export default function HospitalDashboard() {
         <JourneyList journeys={journeys} onPostStage={postStage} emptyLabel="No journeys in this queue right now." />
       )}
 
-      {tab === "assist" && (
+      {tab === "relationship_officer" && (
         <div className="space-y-4">
-          {journeys.length === 0 && !loading && <p className="text-ink/60">No ROSKYRO Assist currently deployed at your hospital.</p>}
+          {journeys.length === 0 && !loading && <p className="text-ink/60">No ROSKYRO Relationship Officer currently deployed at your hospital.</p>}
           {journeys.map((j) => (
             <div key={j.id} className="border border-ink/10 rounded-card p-5 flex flex-wrap items-center justify-between gap-3">
               <div>
@@ -213,7 +213,7 @@ function JourneyList({ journeys, onPostStage, emptyLabel }) {
             <div>
               <div className="font-semibold text-ink">{j.booking_code} — {j.customer_name}</div>
               <div className="text-sm text-ink/50">
-                {j.customer_phone} · {j.service_name} · Assist: {j.agent_name || "unassigned"}
+                {j.customer_phone} · {j.service_name} · Relationship Officer: {j.agent_name || "unassigned"}
               </div>
               <div className="text-sm text-ink/50">Scheduled {new Date(j.scheduled_start).toLocaleString()}</div>
             </div>

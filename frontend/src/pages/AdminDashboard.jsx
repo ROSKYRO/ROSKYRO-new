@@ -567,7 +567,7 @@ export default function AdminDashboard() {
                       </div>
                       {m.status === "active" && (
                         <div className="text-xs text-ink/50 mt-1">
-                          This month: {m.assist_visits_used}/{m.assist_visits_quota} Assist visits used
+                          This month: {m.relationship_officer_visits_used}/{m.relationship_officer_visits_quota} Relationship Officer visits used
                         </div>
                       )}
                       {m.next_billing_date && (
@@ -1486,13 +1486,13 @@ function QuickAddBookingForm({ services, agents, memberships, onAdd }) {
           Concierge membership (optional)
           <select value={form.membership_id} onChange={set("membership_id")} className="mt-1 w-full text-sm border border-ink/15 rounded-lg px-3 py-2 bg-white">
             <option value="">Not a member / one-off booking</option>
-            {memberships.map((m) => <option key={m.id} value={m.id}>{m.customer_name} — {m.plan} ({m.assist_visits_quota - m.assist_visits_used} left)</option>)}
+            {memberships.map((m) => <option key={m.id} value={m.id}>{m.customer_name} — {m.plan} ({m.relationship_officer_visits_quota - m.relationship_officer_visits_used} left)</option>)}
           </select>
         </label>
         {form.membership_id && (
           <label className="flex items-center gap-2 text-sm text-ink/70">
             <input type="checkbox" checked={form.is_membership_covered} onChange={(e) => setForm((f) => ({ ...f, is_membership_covered: e.target.checked }))} />
-            Free — draws from this member's Assist quota
+            Free — draws from this member's Relationship Officer quota
           </label>
         )}
         <Input label="Scheduled start" type="datetime-local" value={form.scheduled_start} onChange={set("scheduled_start")} required />

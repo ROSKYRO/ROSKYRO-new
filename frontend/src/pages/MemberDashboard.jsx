@@ -402,7 +402,7 @@ function BillingTab({ membershipId }) {
       {invoices.length === 0 && <p className="text-sm text-ink/50">No invoices yet.</p>}
       <p className="text-xs text-ink/40 mt-4">
         Payments are confirmed manually via UPI on WhatsApp — a concierge marks your invoice paid
-        once confirmed, same as ROSKYRO Assist bookings.
+        once confirmed, same as ROSKYRO Relationship Officer bookings.
       </p>
     </div>
   );

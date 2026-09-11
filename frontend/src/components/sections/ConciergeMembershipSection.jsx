@@ -2,10 +2,10 @@ import { Link } from "react-router-dom";
 import { WHATSAPP_BOOKING_NUMBER, waLink, BRAND } from "../../config";
 
 // ROSKYRO Concierge — the recurring-revenue membership layer that sits
-// alongside the pay-per-use ROSKYRO Assist services (see ServicesSection).
+// alongside the pay-per-use ROSKYRO Relationship Officer services (see ServicesSection).
 // Positioning: membership = healthcare coordination, not unlimited
 // transport/medical spend. Consultation, lab, imaging, medicines, hospital
-// bills and Assist hours are always billed separately at published rates —
+// bills and Relationship Officer hours are always billed separately at published rates —
 // there are no surprise charges beyond what's listed here.
 
 function waFor(planName) {
@@ -59,7 +59,7 @@ const PLANS = [
     desc: "For families living abroad who want a trusted, always-on concierge for parents back home.",
     included: [
       "Everything in Family",
-      "Priority Assist booking",
+      "Priority Relationship Officer booking",
       "Medical document coordination",
       "Live family updates dashboard",
     ],
@@ -81,7 +81,7 @@ const SEPARATE = [
   "Medicines & pharmacy",
   "Hospital bill",
   "Ambulance",
-  "ROSKYRO Assist hours (billed at published hourly rate)",
+  "ROSKYRO Relationship Officer hours (billed at published hourly rate)",
 ];
 
 export default function ConciergeMembershipSection() {
@@ -94,7 +94,7 @@ export default function ConciergeMembershipSection() {
       <p className="text-ink/60 mb-10 max-w-2xl">
         From appointment to admission, from diagnostics to discharge — one concierge coordinating
         the entire journey. Need hands-on help right now instead? See{" "}
-        <a href="#services" className="text-violet font-semibold">ROSKYRO Assist</a> below.
+        <a href="#services" className="text-violet font-semibold">ROSKYRO Relationship Officer</a> below.
       </p>
 
       <div className="grid md:grid-cols-3 gap-6 mb-12">
@@ -183,7 +183,7 @@ export default function ConciergeMembershipSection() {
         📌 Transport: local (same-city) coordination is included in every plan. For members
         outside the city, your concierge still manages the entire visit end to end — travel to
         the city is arranged and paid for by the member. Beyond your membership price, the only
-        other charges you'll ever see are published, optional ones — like an Assist hour or a
+        other charges you'll ever see are published, optional ones — like a Relationship Officer hour or a
         medical bill — never a hidden or surprise fee.
       </p>
     </section>

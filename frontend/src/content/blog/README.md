@@ -17,7 +17,7 @@ Images referenced in each post live in `frontend/public/blog/images/` and are li
 
 | Service | Image | Type |
 |---|---|---|
-| Hospital Assist | `hospital-assist.png` | Real branded photo |
+| Hospital Relationship Officer | `hospital-relationship-officer.png` | Real branded photo |
 | Elder Companion Care | `elder-companion-care.png` | Real branded photo |
 | 24x7 Urgent Support | `urgent-support-1.png`, `urgent-support-2.png` | Real branded photo (2) |
 | Hospital Concierge | `hospital-concierge-1.png`, `hospital-concierge-2.png` | Real branded photo (2) |

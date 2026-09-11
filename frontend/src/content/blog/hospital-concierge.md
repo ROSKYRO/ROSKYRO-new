@@ -35,8 +35,8 @@ Hospital Concierge is billed hourly with a rate that reflects the coordination-h
 
 ## Frequently asked questions
 
-**How is this different from Hospital Assist?**
-Hospital Assist is built for single OPD visits or short admission support. Hospital Concierge covers the full arc of a hospital stay — admission through discharge — with one continuous point of contact.
+**How is this different from Hospital Relationship Officer?**
+Hospital Relationship Officer is built for single OPD visits or short admission support. Hospital Concierge covers the full arc of a hospital stay — admission through discharge — with one continuous point of contact.
 
 **Will the same Partner be with us for the whole stay?**
 The concierge model is designed for continuity; the app will confirm Partner assignment and any handovers as part of your booking.

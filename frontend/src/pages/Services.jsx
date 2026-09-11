@@ -29,7 +29,7 @@ export default function Services() {
 
   useEffect(() => {
     if (!user) return;
-    api.get("/membership/assist-quota").then((r) => setQuota(r.data)).catch(() => setQuota(null));
+    api.get("/membership/relationship-officer-quota").then((r) => setQuota(r.data)).catch(() => setQuota(null));
   }, [user]);
 
   useEffect(() => {
@@ -65,7 +65,7 @@ export default function Services() {
         ends_at_different_location: endsElsewhere,
       });
       setConfirmed(data);
-      api.get("/membership/assist-quota").then((r) => setQuota(r.data)).catch(() => {});
+      api.get("/membership/relationship-officer-quota").then((r) => setQuota(r.data)).catch(() => {});
     } catch (err) {
       setError(err.response?.data?.detail || "Could not create the booking. Please check the details and try again.");
     } finally {
@@ -109,17 +109,17 @@ export default function Services() {
         {user && quota?.is_member && quota.status === "active" && (
           quota.remaining > 0 ? (
             <div className="mb-6 bg-violet/10 border border-violet/20 rounded-lg px-4 py-3 text-sm text-ink">
-              You have <strong>{quota.remaining} of {quota.quota}</strong> free Assist visits left this month with your ROSKYRO Concierge membership.
+              You have <strong>{quota.remaining} of {quota.quota}</strong> free Relationship Officer visits left this month with your ROSKYRO Concierge membership.
             </div>
           ) : (
             <div className="mb-6 bg-flare/10 border border-flare/30 rounded-lg px-4 py-3 text-sm text-ink">
-              You've used all your free Assist visits this month — this booking will be billed at the normal rate below.
+              You've used all your free Relationship Officer visits this month — this booking will be billed at the normal rate below.
             </div>
           )
         )}
         {user && quota?.is_member && quota.status !== "active" && (
           <div className="mb-6 bg-ink/5 border border-ink/10 rounded-lg px-4 py-3 text-sm text-ink/70">
-            Your Concierge membership is currently {quota.status} — Assist visits will be billed at the normal rate below.
+            Your Concierge membership is currently {quota.status} — Relationship Officer visits will be billed at the normal rate below.
           </div>
         )}
 

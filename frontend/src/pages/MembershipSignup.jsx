@@ -59,7 +59,7 @@ export default function MembershipSignup() {
         target="_blank"
         className="inline-flex items-center gap-1.5 text-sm font-semibold text-violet hover:text-magenta transition-colors mb-8"
       >
-        📄 Read full membership information first — plans, billing, free Assist visits &amp; privacy
+        📄 Read full membership information first — plans, billing, free Relationship Officer visits &amp; privacy
       </Link>
 
       <div className="grid sm:grid-cols-3 gap-3 mb-8">
@@ -144,7 +144,7 @@ export default function MembershipSignup() {
             <Link to="/membership/info" target="_blank" className="text-violet font-semibold">
               Membership Information page
             </Link>{" "}
-            — including plan inclusions, free Assist-visit quota, billing/cancellation terms, and the privacy
+            — including plan inclusions, free Relationship Officer-visit quota, billing/cancellation terms, and the privacy
             policy — and agree to it.
           </span>
         </label>

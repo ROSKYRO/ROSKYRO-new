@@ -3,7 +3,7 @@ import useSEO from "../hooks/useSEO";
 import { SUPPORT_EMAIL, WHATSAPP_SUPPORT_NUMBER, waLink, BRAND } from "../config";
 
 // Full membership information page — everything a member should read before
-// subscribing: what each plan includes/excludes, the free Assist-visit quota,
+// subscribing: what each plan includes/excludes, the free Relationship Officer-visit quota,
 // billing & cancellation terms, and the privacy policy for health data.
 // Linked from the homepage teaser (ConciergeMembershipSection) and required
 // reading (checkbox gate) on the signup page (MembershipSignup) — this is the
@@ -26,7 +26,7 @@ const PLANS = [
       "Medical records coordination",
       "WhatsApp concierge support",
     ],
-    freeVisits: "2 free Assist visits/month",
+    freeVisits: "2 free Relationship Officer visits/month",
     popular: false,
   },
   {
@@ -43,7 +43,7 @@ const PLANS = [
       "Dedicated family care manager",
       "Family WhatsApp updates",
     ],
-    freeVisits: "5 free Assist visits/month (shared across your 4 members)",
+    freeVisits: "5 free Relationship Officer visits/month (shared across your 4 members)",
     popular: true,
   },
   {
@@ -55,11 +55,11 @@ const PLANS = [
     desc: "Everything in Family, built for long-distance peace of mind.",
     included: [
       "Everything in Family",
-      "Priority Assist booking",
+      "Priority Relationship Officer booking",
       "Medical document coordination",
       "Live family updates dashboard",
     ],
-    freeVisits: "8 free Assist visits/month (shared across your members)",
+    freeVisits: "8 free Relationship Officer visits/month (shared across your members)",
     popular: false,
   },
 ];
@@ -78,7 +78,7 @@ const SEPARATE = [
   "Medicines & pharmacy",
   "Hospital bill",
   "Ambulance",
-  "ROSKYRO Assist visits beyond your monthly free quota (at published hourly rate)",
+  "ROSKYRO Relationship Officer visits beyond your monthly free quota (at published hourly rate)",
 ];
 
 const GOOD_TO_KNOW = [
@@ -125,7 +125,7 @@ export default function MembershipInfo() {
     path: "/membership/info",
     title: `${BRAND} Concierge — Membership Information`,
     description:
-      "What each ROSKYRO Concierge plan includes, what's billed separately, free Assist-visit quotas, billing & cancellation terms, and how we handle your health data.",
+      "What each ROSKYRO Concierge plan includes, what's billed separately, free Relationship Officer-visit quotas, billing & cancellation terms, and how we handle your health data.",
   });
 
   return (
@@ -149,7 +149,7 @@ export default function MembershipInfo() {
             ROSKYRO Concierge is a <b className="text-ink">recurring healthcare coordination membership</b> — a
             dedicated concierge who manages appointments, diagnostics, hospital visits and follow-ups for you or
             your family, end to end. It is <b className="text-ink">not medical treatment or medical advice</b>,
-            and it is separate from ROSKYRO Assist (our pay-per-use attendant/companion booking service).
+            and it is separate from ROSKYRO Relationship Officer (our pay-per-use attendant/companion booking service).
           </p>
         </section>
 
@@ -219,7 +219,7 @@ export default function MembershipInfo() {
               <h4 className="text-violet text-xs font-semibold uppercase tracking-wide mb-3">✅ Your membership covers</h4>
               <ul className="space-y-1.5 text-[13.5px] text-ink list-disc pl-4">
                 {COVERED.map((item) => <li key={item}>{item}</li>)}
-                <li><b>Free ROSKYRO Assist visits every month (see below)</b></li>
+                <li><b>Free ROSKYRO Relationship Officer visits every month (see below)</b></li>
               </ul>
             </div>
             <div className="bg-white border border-mist rounded-2xl p-5">
@@ -231,13 +231,13 @@ export default function MembershipInfo() {
           </div>
 
           <div className="bg-mist rounded-2xl px-5 py-4.5 text-[13.5px] text-ink border-l-4 border-violet mt-5">
-            <b className="text-violet">Free Assist visits included every month:</b>
+            <b className="text-violet">Free Relationship Officer visits included every month:</b>
             <br />
             ROSKYRO Care — <b>2 visits/month</b> &nbsp;·&nbsp; ROSKYRO Family — <b>5 visits/month</b> (shared
             across all covered members) &nbsp;·&nbsp; ROSKYRO NRI Care — <b>8 visits/month</b> (shared across
             all covered members)
             <br />
-            Any Assist visit beyond your plan's monthly quota is billed at our published hourly rate, just like
+            Any Relationship Officer visit beyond your plan's monthly quota is billed at our published hourly rate, just like
             a regular booking. The free quota resets at the start of each billing month and does not carry
             forward.
           </div>

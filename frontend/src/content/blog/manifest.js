@@ -78,25 +78,25 @@ export const posts = [
     ]
   },
   {
-    "slug": "hospital-assist",
-    "title": "Hospital Assist: A Trained Companion for OPD Visits and Admission Days",
-    "metaTitle": "Hospital Assist Service in India | OPD & Admission Support – ROSKYRO",
-    "metaDescription": "ROSKYRO's Hospital Assist service gives your family a trained companion for OPD queues, admission paperwork, and hospital-floor support. Book by the hour.",
-    "primaryKeyword": "hospital assist service India",
+    "slug": "hospital-relationship-officer",
+    "title": "Hospital Relationship Officer: A Trained Companion for OPD Visits and Admission Days",
+    "metaTitle": "Hospital Relationship Officer Service in India | OPD & Admission Support – ROSKYRO",
+    "metaDescription": "ROSKYRO's Hospital Relationship Officer service gives your family a trained companion for OPD queues, admission paperwork, and hospital-floor support. Book by the hour.",
+    "primaryKeyword": "hospital relationship officer service India",
     "secondaryKeywords": [
       "OPD attendant service",
       "hospital companion service",
       "hospital paperwork help"
     ],
-    "image": "/blog/images/hospital-assist.png",
-    "imageAlt": "A ROSKYRO Hospital Assist Partner in a white ROSKYRO polo with lanyard, smiling with an elderly patient near the OPD registration desk",
+    "image": "/blog/images/hospital-relationship-officer.png",
+    "imageAlt": "A ROSKYRO Hospital Relationship Officer Partner in a white ROSKYRO polo with lanyard, smiling with an elderly patient near the OPD registration desk",
     "faqs": [
       {
         "q": "Is the Partner medically trained?",
-        "a": "Hospital Assist Partners are trained for non-medical, logistical support such as queues, paperwork, and coordination, not clinical care."
+        "a": "Hospital Relationship Officer Partners are trained for non-medical, logistical support such as queues, paperwork, and coordination, not clinical care."
       },
       {
-        "q": "Can I book Hospital Assist for a parent who will be alone at the hospital?",
+        "q": "Can I book a Hospital Relationship Officer for a parent who will be alone at the hospital?",
         "a": "Yes, you can add a contact-on-arrival name and phone number when booking so the Partner knows exactly who to meet."
       },
       {
@@ -120,8 +120,8 @@ export const posts = [
     "imageAlt": "A ROSKYRO Hospital Concierge Partner in a white ROSKYRO polo showing a tablet to an elderly couple at the hospital reception",
     "faqs": [
       {
-        "q": "How is this different from Hospital Assist?",
-        "a": "Hospital Assist covers single OPD visits or short admission support, while Hospital Concierge covers the full hospital stay from admission through discharge with one continuous point of contact."
+        "q": "How is this different from Hospital Relationship Officer?",
+        "a": "Hospital Relationship Officer covers single OPD visits or short admission support, while Hospital Concierge covers the full hospital stay from admission through discharge with one continuous point of contact."
       },
       {
         "q": "Can the concierge speak directly with hospital staff on our behalf?",
