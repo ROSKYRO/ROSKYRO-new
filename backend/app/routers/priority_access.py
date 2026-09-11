@@ -7,6 +7,7 @@ from sqlalchemy import or_
 from app.db.session import get_db
 from app.core.deps import get_current_user
 from app.models.user import User
+from app.models.membership import Membership, MembershipStatus
 from app.models.priority_access import (
     PartnerApplication, ApplicationStatus,
     Partner, PartnerStatus, PriorityAccessAvailability,
@@ -65,10 +66,20 @@ def get_partner(partner_id: int, db: Session = Depends(get_db)):
     return partner
 
 
-# ---------- Request Priority Appointment (patient must be logged in) ----------
+# ---------- Request Priority Appointment (ROSKYRO Concierge members only) ----------
 
 @router.post("/appointment-requests", response_model=AppointmentRequestOut)
 def request_appointment(payload: AppointmentRequestIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    # Priority Appointment booking is a ROSKYRO Concierge membership benefit —
+    # gate it here (not just in the frontend) so the rule holds regardless of
+    # which client calls this endpoint.
+    membership = db.query(Membership).filter(Membership.user_id == user.id).first()
+    if not membership or membership.status != MembershipStatus.active:
+        raise HTTPException(
+            status_code=403,
+            detail="Priority Appointment booking is available exclusively to active ROSKYRO Concierge members. Please subscribe to a membership plan to continue.",
+        )
+
     partner = db.query(Partner).filter(Partner.id == payload.partner_id).first()
     if not partner or partner.partner_status == PartnerStatus.inactive:
         raise HTTPException(status_code=404, detail="Partner not found")
