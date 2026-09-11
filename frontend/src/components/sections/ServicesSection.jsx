@@ -47,6 +47,32 @@ export default function ServicesSection() {
             )}
           </div>
         ))}
+
+        {/* Concierge Membership — shown alongside the hourly services, but with
+            no price on this card. Pricing lives only in ConciergeMembershipSection (#membership). */}
+        <div className="p-[1.5px] rounded-card bg-brand-gradient">
+          <div className="bg-white rounded-[13px] p-6 h-full flex flex-col">
+            <div className="text-3xl mb-4">🩺</div>
+            <div className="font-display text-lg text-ink mb-1">Concierge Membership</div>
+            <div className="text-sm text-ink/60 mb-4 flex-1">
+              Not a one-off visit — a dedicated concierge who coordinates your ongoing healthcare:
+              appointments, diagnostics, hospital &amp; discharge, every month.
+            </div>
+            <a
+              href="#membership"
+              className="text-center px-4 py-2 rounded-full bg-brand-gradient text-white text-sm font-semibold hover:opacity-90 transition-opacity"
+            >
+              View membership plans
+            </a>
+            <Link
+              to="/membership/info"
+              className="text-center mt-2 text-xs font-semibold text-violet hover:text-magenta transition-colors"
+            >
+              Membership Information →
+            </Link>
+          </div>
+        </div>
+
         {services.length === 0 && (
           <p className="text-ink/50 text-sm col-span-full">Connect the API to load live services here.</p>
         )}
