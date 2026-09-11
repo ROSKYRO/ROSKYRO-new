@@ -20,7 +20,6 @@ from app.schemas.booking import (
 )
 from app.services.pricing import estimate_booking, price_booking, waived_breakdown
 from app.services.membership_quota import relationship_officer_quota_status
-from app.core.config import settings
 
 router = APIRouter(prefix="/bookings", tags=["bookings"])
 

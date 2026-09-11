@@ -16,7 +16,6 @@ functions:
   - A configurable "first N bookings free first hour" launch promo.
 """
 from dataclasses import dataclass
-from typing import Optional
 
 from app.core.config import settings
 

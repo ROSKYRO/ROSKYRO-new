@@ -1,10 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from typing import List
 
 from app.db.session import get_db
-from app.core.deps import require_admin
-from app.models.user import User
 from app.models.complaint import Complaint, ComplaintCategory
 from app.models.city import City
 from app.schemas.misc import ComplaintIn, CityInterestIn, CityOut

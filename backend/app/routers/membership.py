@@ -1,6 +1,6 @@
 import random
 from datetime import datetime, timedelta
-from typing import List, Optional
+from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -18,7 +18,7 @@ from app.services.membership_quota import relationship_officer_quota_status
 from app.schemas.membership import (
     MembershipSignupIn, MembershipOut,
     FamilyMemberIn, FamilyMemberOut,
-    CareRequestIn, CareRequestOut, CareRequestStatusIn,
+    CareRequestIn, CareRequestOut,
     CareDocumentIn, CareDocumentOut,
     TransportRequestIn, TransportRequestOut,
     MembershipInvoiceOut, MemberDashboardOut, RelationshipOfficerQuotaOut,
