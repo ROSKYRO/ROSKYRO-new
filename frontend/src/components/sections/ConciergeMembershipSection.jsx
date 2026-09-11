@@ -94,9 +94,7 @@ export default function ConciergeMembershipSection() {
       <p className="text-ink/60 mb-10 max-w-2xl">
         From appointment to admission, from diagnostics to discharge — one concierge coordinating
         the entire journey. Need hands-on help right now instead? See{" "}
-        <a href="#services" className="text-violet font-semibold">ROSKYRO Assist</a> below. For full plan
-        details, billing terms &amp; privacy policy, read the{" "}
-        <Link to="/membership/info" className="text-violet font-semibold">Membership Information page</Link>.
+        <a href="#services" className="text-violet font-semibold">ROSKYRO Assist</a> below.
       </p>
 
       <div className="grid md:grid-cols-3 gap-6 mb-12">
@@ -130,6 +128,12 @@ export default function ConciergeMembershipSection() {
                   </li>
                 ))}
               </ul>
+              <Link
+                to="/membership/info"
+                className="text-center px-4 py-2.5 rounded-full border border-violet/30 text-violet text-sm font-semibold hover:bg-violet/5 transition-colors mb-2"
+              >
+                📄 Membership Information
+              </Link>
               <a
                 href={waFor(p.name)}
                 target="_blank"
