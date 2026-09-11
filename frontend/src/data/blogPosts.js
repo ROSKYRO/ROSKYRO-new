@@ -377,6 +377,76 @@ export const BLOG_POSTS = [
       },
     ],
   },
+  {
+    slug: "concierge-medicine-india",
+    icon: "🩺",
+    name: "Concierge Medicine in India",
+    category: "Concierge Medicine",
+    title: "Concierge Medicine in India — What It Is and Who Actually Supports It",
+    metaTitle: "Concierge Medicine in India: How It Works & Who Supports the Journey — ROSKYRO",
+    metaDescription:
+      "Concierge medicine is growing fast in India's metros and tier-2 cities. Here's what it actually means, why families are choosing it, and how ROSKYRO's verified Partners support the non-medical side of that journey — from hospital coordination to elder accompaniment.",
+    keywords: [
+      "concierge medicine India",
+      "concierge medicine services India",
+      "personalised healthcare India",
+      "concierge doctor service India",
+      "private healthcare concierge India",
+      "concierge medicine tier 2 cities",
+    ],
+    excerpt:
+      "Concierge medicine is reshaping how Indian families access healthcare — here's what the model actually means, and where non-medical support like ROSKYRO fits in.",
+    readTime: "6 min read",
+    heroTagline: "Personalised care is growing. So is the need for someone to handle everything around it.",
+    sections: [
+      {
+        heading: "What is concierge medicine, exactly?",
+        body: "Concierge medicine started as a model where patients pay a doctor or clinic directly for closer, more personalised attention — shorter waits, longer consultations, direct access to a physician, and care that feels less rushed than a typical hospital OPD visit. In India, the term has widened over the last few years to describe any healthcare experience built around convenience and personal attention: home visits, dedicated care coordinators, priority hospital access, and curated second-opinion networks for families who want more than a standard queue-and-consult experience.",
+      },
+      {
+        heading: "Why concierge medicine is growing across Indian cities",
+        body: "A few forces are pushing this shift at once. Nuclear families mean fewer people are physically available to sit through hospital queues or coordinate a parent's diagnostic reports. NRI families managing a parent's healthcare from another country need a dependable local presence, not just a phone update. Tier-2 and tier-3 cities are seeing rising incomes and rising expectations, but hospital infrastructure and staff-to-patient ratios haven't caught up everywhere — so the gap between wanting personalised care and actually getting it is widening, not shrinking.",
+      },
+      {
+        heading: "The part of concierge medicine that usually gets ignored",
+        body: "Most conversations about concierge medicine focus on the doctor relationship — access, consultation time, diagnosis quality. But the lived experience of a hospital visit, a diagnostic test, or a parent's recovery at home is made up mostly of logistics: who stands in the admission queue, who tracks down the report, who sits with an elderly patient so they're not alone between visits, who manages the trip home after discharge. This is the layer concierge medicine rarely covers, and it's exactly where families feel the most stress.",
+      },
+      {
+        heading: "Where ROSKYRO fits into the concierge medicine landscape",
+        body: "ROSKYRO isn't a clinic and doesn't provide medical treatment, diagnosis, or physician access — that distinction matters and we're upfront about it. What ROSKYRO provides is the non-medical concierge layer around a patient's journey: background-verified Partners who handle hospital admission and discharge coordination, accompany elderly family members to appointments, manage diagnostic centre visits and report collection, and support outstation patients travelling to another city for treatment. Think of it as the practical support system that sits alongside whatever medical care — concierge or otherwise — a family has already arranged.",
+      },
+      {
+        heading: "A different model from traditional concierge retainers",
+        body: "Classic concierge medicine often runs on an annual membership or retainer, paid whether or not it's used that month. ROSKYRO works the opposite way — there's no membership and no advance payment. You book a verified Partner on WhatsApp only when you need one, billing is tracked transparently from a Start PIN to an End PIN so you're charged for actual time on the ground, and payment is settled after the visit is complete. Full pricing details for each service are shared upfront during booking, before you confirm anything.",
+      },
+      {
+        heading: "Who this matters most for",
+        body: "Families with an out-of-town or NRI relative trying to coordinate an ageing parent's care from a distance. Patients travelling from a smaller town to a metro for specialised treatment who need one dependable local point of contact. Working professionals who can't take repeated leave for hospital logistics but still want a verified, accountable presence for their family. And increasingly, tier-2 city households who want the personalised, well-coordinated experience concierge medicine promises, without needing a premium retainer to get it.",
+      },
+    ],
+    faqs: [
+      {
+        q: "Is ROSKYRO a concierge medicine provider or a doctor service?",
+        a: "No. ROSKYRO is a non-medical concierge and coordination service. Partners handle logistics, accompaniment, and practical support — they don't provide medical treatment, diagnosis, or clinical advice. For medical care, families work with their own doctor or hospital, and ROSKYRO supports everything around that relationship.",
+      },
+      {
+        q: "How is ROSKYRO different from a concierge medicine membership?",
+        a: "Traditional concierge medicine typically involves a recurring membership or retainer fee paid to a doctor or clinic. ROSKYRO has no membership — you book a verified Partner only when needed, and pay after the service is complete, based on actual time worked.",
+      },
+      {
+        q: "Can ROSKYRO Partners coordinate with my family's concierge doctor?",
+        a: "Partners can help with logistics around appointments — reaching the clinic, coordinating timings, accompanying a patient — but clinical communication and decisions with the doctor remain between the doctor and the family.",
+      },
+      {
+        q: "Is this available outside major metros?",
+        a: "ROSKYRO is expanding city by city, with services designed to work well in both large metros and smaller cities where personalised healthcare support is harder to find locally.",
+      },
+      {
+        q: "Where can I see exact pricing?",
+        a: "Every service has transparent, published pricing shown on WhatsApp before you confirm a booking, so you always know the cost upfront — there's no hidden fee or advance payment required.",
+      },
+    ],
+  },
 ];
 
 export function getPostBySlug(slug) {
