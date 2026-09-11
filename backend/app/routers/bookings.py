@@ -19,7 +19,7 @@ from app.schemas.booking import (
     BookingWithPinsOut, SubmitStartPinIn, SubmitEndPinIn, AssignAgentIn, SosIn,
 )
 from app.services.pricing import estimate_booking, price_booking, waived_breakdown
-from app.services.membership_quota import assist_quota_status
+from app.services.membership_quota import relationship_officer_quota_status
 from app.core.config import settings
 
 router = APIRouter(prefix="/bookings", tags=["bookings"])
@@ -56,14 +56,14 @@ def estimate(payload: BookingEstimateIn, db: Session = Depends(get_db)):
 def create_booking(payload: BookingCreateIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     _get_service_or_404(db, payload.service_id)
 
-    # If this customer has an active membership with Assist visits still
+    # If this customer has an active membership with Relationship Officer visits still
     # left in the current billing period, this booking draws from that free
     # quota — billing is skipped when it's closed out (see submit_end_pin).
     membership = db.query(Membership).filter(Membership.user_id == user.id).first()
     is_covered = False
     membership_id = None
     if membership and membership.status == MembershipStatus.active:
-        if assist_quota_status(db, membership)["remaining"] > 0:
+        if relationship_officer_quota_status(db, membership)["remaining"] > 0:
             is_covered = True
             membership_id = membership.id
 
@@ -189,7 +189,7 @@ def submit_end_pin(booking_id: int, payload: SubmitEndPinIn, db: Session = Depen
     service = db.query(Service).get(booking.service_id)
 
     if booking.is_membership_covered:
-        # Drawn from the member's free Assist-visit quota — no charge at all,
+        # Drawn from the member's free Relationship Officer-visit quota — no charge at all,
         # including arrival/return fees. See services/membership_quota.py.
         breakdown = waived_breakdown(booking.booked_hours, service.hourly_rate)
     else:

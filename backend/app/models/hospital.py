@@ -17,7 +17,7 @@ class HospitalContractStatus(str, enum.Enum):
 class Hospital(Base):
     """
     A partner hospital using ROSKYRO Hospital Console (Concierge-as-a-Service +
-    Technology). Families pick a hospital when booking ROSKYRO Assist; hospital
+    Technology). Families pick a hospital when booking ROSKYRO Relationship Officer; hospital
     staff log into their own console scoped to this record only.
     """
     __tablename__ = "hospitals"

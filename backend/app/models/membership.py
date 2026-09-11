@@ -42,7 +42,7 @@ PLAN_FREE_ASSIST_VISITS = {
 
 class Membership(Base):
     """A recurring ROSKYRO Concierge membership — separate from one-off
-    ROSKYRO Assist bookings. One User has at most one Membership."""
+    ROSKYRO Relationship Officer bookings. One User has at most one Membership."""
     __tablename__ = "memberships"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -221,7 +221,7 @@ class MembershipInvoice(Base):
     """One billing cycle (usually monthly) for a membership. MVP scope: no
     payment gateway is wired up yet — invoices are marked paid manually by
     an admin (e.g. after a UPI payment confirmed on WhatsApp), same pattern
-    ROSKYRO already uses for Assist bookings."""
+    ROSKYRO already uses for Relationship Officer bookings."""
     __tablename__ = "membership_invoices"
 
     id = Column(Integer, primary_key=True, index=True)

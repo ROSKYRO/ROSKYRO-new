@@ -23,7 +23,7 @@ from app.models.membership import (
     Membership, MembershipStatus, MembershipPlan, PLAN_MONTHLY_PRICE,
     FamilyMember, MembershipInvoice, InvoiceStatus,
 )
-from app.services.membership_quota import assist_quota_status
+from app.services.membership_quota import relationship_officer_quota_status
 from app.models.priority_access import (
     PartnerApplication, ApplicationStatus, Partner, PartnerStatus,
     PriorityAccessAvailability, AppointmentRequest,
@@ -469,7 +469,7 @@ def admin_delete_team_member(member_id: int, db: Session = Depends(get_db), curr
 
 def _membership_to_admin_out(db: Session, m: Membership) -> AdminMembershipOut:
     family_count = db.query(func.count(FamilyMember.id)).filter(FamilyMember.membership_id == m.id).scalar()
-    quota_status = assist_quota_status(db, m) if m.status == MembershipStatus.active else None
+    quota_status = relationship_officer_quota_status(db, m) if m.status == MembershipStatus.active else None
     return AdminMembershipOut(
         id=m.id,
         member_code=m.member_code,
@@ -481,8 +481,8 @@ def _membership_to_admin_out(db: Session, m: Membership) -> AdminMembershipOut:
         customer_name=m.user.full_name,
         customer_phone=m.user.phone,
         family_member_count=family_count or 0,
-        assist_visits_quota=quota_status["quota"] if quota_status else 0,
-        assist_visits_used=quota_status["used"] if quota_status else 0,
+        relationship_officer_visits_quota=quota_status["quota"] if quota_status else 0,
+        relationship_officer_visits_used=quota_status["used"] if quota_status else 0,
     )
 
 
@@ -531,7 +531,7 @@ def admin_list_invoices(
 
 @router.post("/memberships/invoices/{invoice_id}/mark-paid", response_model=AdminInvoiceOut)
 def admin_mark_invoice_paid(invoice_id: int, db: Session = Depends(get_db), _: User = Depends(require_admin)):
-    """Manual payment confirmation — same pattern as Assist bookings (UPI
+    """Manual payment confirmation — same pattern as Relationship Officer bookings (UPI
     screenshot confirmed on WhatsApp, then marked paid here). Activates the
     membership on its first invoice and pushes the next billing date out
     by one cycle."""
@@ -971,7 +971,7 @@ def admin_set_booking_coverage(
     _: User = Depends(require_admin),
 ):
     """Manual goodwill override — mark a booking as free (covered by a
-    membership's Assist quota) or undo that, outside the normal automatic
+    membership's Relationship Officer quota) or undo that, outside the normal automatic
     check. Only meaningful for a booking that's already `completed` (that's
     when pricing fields are filled); for anything earlier, the normal
     booking flow will price it correctly on its own once it completes."""

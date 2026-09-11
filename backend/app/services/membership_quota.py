@@ -1,7 +1,7 @@
 """
-ROSKYRO Concierge — free Assist-visit quota.
+ROSKYRO Concierge — free Relationship Officer-visit quota.
 
-Every membership plan bundles a number of free ROSKYRO Assist visits per
+Every membership plan bundles a number of free ROSKYRO Relationship Officer visits per
 billing month (Care: 2, Family: 5, NRI Care: 8 — see the membership info
 page). This module is the single place that decides, for a given
 membership, how many of those visits have been used in the *current*
@@ -48,7 +48,7 @@ def current_billing_period(db: Session, membership: Membership) -> Tuple[datetim
     return period_start, period_end
 
 
-def assist_quota_status(db: Session, membership: Membership) -> dict:
+def relationship_officer_quota_status(db: Session, membership: Membership) -> dict:
     """Plan quota, visits used in the current billing period, and visits
     remaining. The pool is shared across every family member on the
     membership — usage is always counted by membership_id, never per
@@ -82,4 +82,4 @@ def has_quota_remaining(db: Session, membership: Membership) -> bool:
     — quota only applies while the membership is actually active."""
     if membership.status != MembershipStatus.active:
         return False
-    return assist_quota_status(db, membership)["remaining"] > 0
+    return relationship_officer_quota_status(db, membership)["remaining"] > 0

@@ -126,9 +126,9 @@ class MembershipInvoiceOut(BaseModel):
         from_attributes = True
 
 
-# ---------- Assist-visit quota ----------
+# ---------- Relationship Officer-visit quota ----------
 
-class AssistQuotaOut(BaseModel):
+class RelationshipOfficerQuotaOut(BaseModel):
     is_member: bool
     plan: Optional[str] = None
     status: Optional[str] = None  # membership status; quota only actually applies when this is "active"

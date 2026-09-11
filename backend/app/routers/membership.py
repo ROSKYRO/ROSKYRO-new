@@ -14,14 +14,14 @@ from app.models.membership import (
     CareDocument, CareDocumentStatus, TransportRequest, TransportStatus,
     MembershipInvoice, InvoiceStatus,
 )
-from app.services.membership_quota import assist_quota_status
+from app.services.membership_quota import relationship_officer_quota_status
 from app.schemas.membership import (
     MembershipSignupIn, MembershipOut,
     FamilyMemberIn, FamilyMemberOut,
     CareRequestIn, CareRequestOut, CareRequestStatusIn,
     CareDocumentIn, CareDocumentOut,
     TransportRequestIn, TransportRequestOut,
-    MembershipInvoiceOut, MemberDashboardOut, AssistQuotaOut,
+    MembershipInvoiceOut, MemberDashboardOut, RelationshipOfficerQuotaOut,
 )
 
 router = APIRouter(prefix="/membership", tags=["membership"])
@@ -114,20 +114,20 @@ def my_dashboard(db: Session = Depends(get_db), user: User = Depends(get_current
     )
 
 
-@router.get("/assist-quota", response_model=AssistQuotaOut)
-def my_assist_quota(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    """How many free ROSKYRO Assist visits are left this billing month —
+@router.get("/relationship-officer-quota", response_model=RelationshipOfficerQuotaOut)
+def my_relationship_officer_quota(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """How many free ROSKYRO Relationship Officer visits are left this billing month —
     used by the booking page to show a live banner before the customer
     confirms. Safe to call for a non-member (returns is_member=False)."""
     membership = db.query(Membership).filter(Membership.user_id == user.id).first()
     if not membership:
-        return AssistQuotaOut(is_member=False)
+        return RelationshipOfficerQuotaOut(is_member=False)
 
     if membership.status != MembershipStatus.active:
-        return AssistQuotaOut(is_member=True, plan=membership.plan.value, status=membership.status.value)
+        return RelationshipOfficerQuotaOut(is_member=True, plan=membership.plan.value, status=membership.status.value)
 
-    quota_status = assist_quota_status(db, membership)
-    return AssistQuotaOut(
+    quota_status = relationship_officer_quota_status(db, membership)
+    return RelationshipOfficerQuotaOut(
         is_member=True,
         plan=membership.plan.value,
         status=membership.status.value,

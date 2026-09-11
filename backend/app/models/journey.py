@@ -11,13 +11,13 @@ class JourneyStage(str, enum.Enum):
     """
     The hospital-floor journey a patient moves through, per the FINAL ROSKYRO
     ARCHITECTURE (Concierge Booking -> Journey Engine -> Assignment Engine ->
-    ROSKYRO Assist -> Patient Journey). This runs alongside — not instead of —
+    ROSKYRO Relationship Officer -> Patient Journey). This runs alongside — not instead of —
     the existing Booking.status billing/PIN state machine: Booking.status
     tracks *billing*, JourneyStage tracks *where the patient physically is*.
-    Hospital Console staff and ROSKYRO Assist post updates here; families see
+    Hospital Console staff and ROSKYRO Relationship Officer post updates here; families see
     them live as "Family Updates" (WhatsApp / Dashboard).
     """
-    assist_assigned = "assist_assigned"
+    relationship_officer_assigned = "relationship_officer_assigned"
     on_the_way = "on_the_way"
     arrived = "arrived"            # Meet & Greet / Hospital Entry / Navigation / Wheelchair
     registration = "registration"
@@ -31,7 +31,7 @@ class JourneyStage(str, enum.Enum):
 
 # Canonical order, used by the frontend timeline and to validate forward progress.
 JOURNEY_STAGE_ORDER = [
-    JourneyStage.assist_assigned,
+    JourneyStage.relationship_officer_assigned,
     JourneyStage.on_the_way,
     JourneyStage.arrived,
     JourneyStage.registration,
@@ -52,7 +52,7 @@ class JourneyUpdate(Base):
     booking_id = Column(Integer, ForeignKey("bookings.id"), nullable=False, index=True)
     stage = Column(Enum(JourneyStage), nullable=False)
     note = Column(Text, nullable=True)
-    posted_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # hospital staff / admin / assist
+    posted_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # hospital staff / admin / relationship officer
     created_at = Column(DateTime, default=datetime.utcnow)
 
     booking = relationship("Booking", back_populates="journey_updates")

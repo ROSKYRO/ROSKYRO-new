@@ -117,7 +117,7 @@ def estimate_booking(
 
 
 def waived_breakdown(booked_hours: float, hourly_rate: float, billable_hours: float = 0.0) -> PriceBreakdown:
-    """Fully-free breakdown for a booking covered by a membership's Assist
+    """Fully-free breakdown for a booking covered by a membership's Relationship Officer
     quota (or an admin goodwill override) — nothing is charged, including
     arrival/return fees. Keeps a real PriceBreakdown shape so callers don't
     need a separate code path to store/display the result."""
