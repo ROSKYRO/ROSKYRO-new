@@ -1,0 +1,49 @@
+<svg viewBox="0 0 800 450" xmlns="http://www.w3.org/2000/svg" font-family="Inter, sans-serif">
+<defs>
+  <linearGradient id="badgeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+    <stop offset="0%" stop-color="#4B21C4"/>
+    <stop offset="55%" stop-color="#D91C82"/>
+    <stop offset="100%" stop-color="#F5821F"/>
+  </linearGradient>
+</defs>
+
+    <rect width="800" height="450" fill="#FBF9F7"/>
+    <circle cx="640" cy="90" r="220" fill="#F5821F" opacity="0.10"/>
+    <circle cx="90" cy="380" r="180" fill="#4B21C4" opacity="0.10"/>
+    <path d="M0,450 Q400,390 800,450 L800,450 L0,450 Z" fill="#F1EEFA"/>
+    <g transform="translate(150,130) scale(1.15)"><circle r="30" fill="#F5821F"/><path d="M-18,4 L18,-10 L14,-2 L2,2 L4,12 L-2,14 L-6,4 L-16,8 Z" fill="#FFFFFF"/></g>
+    <g transform="translate(480,230) scale(1.15,1.15)">
+      <!-- shadow -->
+      <ellipse cx="0" cy="182" rx="46" ry="10" fill="#1A1523" opacity="0.08"/>
+      <!-- legs -->
+      <rect x="-28" y="120" width="24" height="66" rx="10" fill="#1A1523"/>
+      <rect x="4" y="120" width="24" height="66" rx="10" fill="#1A1523"/>
+      <!-- torso / white tee -->
+      <path d="M -40,40 Q -42,30 -30,24 L -14,16 Q 0,10 14,16 L 30,24 Q 42,30 40,40 L 34,120 Q 0,132 -34,120 Z" fill="#FFFFFF" stroke="#EAE6F2" stroke-width="1.5"/>
+      <!-- collar -->
+      <path d="M -12,17 Q 0,26 12,17 L 8,13 Q 0,19 -8,13 Z" fill="#EDEAF4"/>
+      <!-- sleeves -->
+      <path d="M -30,24 L -46,52 Q -50,60 -42,64 L -34,68 L -22,32 Z" fill="#FFFFFF" stroke="#EAE6F2" stroke-width="1.5"/>
+      <path d="M 30,24 L 46,52 Q 50,60 42,64 L 34,68 L 22,32 Z" fill="#FFFFFF" stroke="#EAE6F2" stroke-width="1.5"/>
+      <!-- arms (skin) -->
+      <rect x="-50" y="58" width="16" height="46" rx="8" fill="#C88A5E"/>
+      <rect x="34" y="58" width="16" height="46" rx="8" fill="#C88A5E"/>
+      
+      <!-- logo badge on chest -->
+      
+    <g transform="translate(0,58)">
+      <circle r="13" fill="#FFFFFF" stroke="#EDE9F7" stroke-width="1"/>
+      <circle r="10.5" fill="url(#badgeGrad)"/>
+      <text x="0" y="4.5" text-anchor="middle" font-family="Georgia, serif" font-weight="700" font-size="15" fill="#FFFFFF">R</text>
+    </g>
+      <!-- neck -->
+      <rect x="-8" y="4" width="16" height="16" fill="#B4744A"/>
+      <!-- head -->
+      <circle cx="0" cy="-14" r="26" fill="#C88A5E"/>
+      <!-- face -->
+      <circle cx="-9" cy="-16" r="2.6" fill="#1A1523"/>
+      <circle cx="9" cy="-16" r="2.6" fill="#1A1523"/>
+      <path d="M -8,-4 Q 0,1 8,-4" stroke="#1A1523" stroke-width="2" fill="none" stroke-linecap="round"/>
+      <!-- hair -->
+      <path d="M -26,-18 Q -30,-42 0,-42 Q 30,-42 26,-18 Q 26,-30 0,-30 Q -26,-30 -26,-18 Z" fill="#1A1523"/>
+    </g></svg>
