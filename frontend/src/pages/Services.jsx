@@ -119,11 +119,11 @@ export default function Services() {
           </div>
         )}
 
-        {/* Security PINs Card */}
+        {/* Security PIN Card */}
         <div className="bg-ink text-white rounded-3xl p-6 sm:p-7 text-left space-y-4 shadow-xl mb-8">
           <div className="flex items-center justify-between border-b border-white/10 pb-3">
             <div className="text-xs font-bold uppercase tracking-wider text-flare">
-              Security Authentication PINs
+              Security Authentication PIN
             </div>
             <span className="text-[10px] text-white/50 bg-white/10 px-2 py-0.5 rounded-full">
               Do Not Share In Advance
@@ -131,10 +131,13 @@ export default function Services() {
           </div>
 
           <p className="text-xs text-parchment/70 leading-relaxed">
-            Share the <strong>Start PIN</strong> only when your Partner arrives in uniform. Share the <strong>End PIN</strong> when service is completed to stop billing.
+            Share the <strong>Start PIN</strong> only when your Relationship Officer arrives in uniform —
+            this starts the billing clock. When the visit is finished, your Officer will tell you a
+            separate <strong>End PIN</strong> to enter in My Bookings, which stops the clock. You won't
+            see the End PIN in advance — it only comes from your Officer once the work is genuinely done.
           </p>
 
-          <div className="grid grid-cols-2 gap-3 pt-2">
+          <div className="pt-2">
             <div className="bg-white/10 rounded-2xl p-3.5 flex flex-col justify-between">
               <span className="text-[11px] text-white/60">Start PIN</span>
               <div className="flex items-center justify-between mt-1">
@@ -148,21 +151,6 @@ export default function Services() {
                 </button>
               </div>
               {copiedPin === "start" && <span className="text-[10px] text-emerald-400">Copied!</span>}
-            </div>
-
-            <div className="bg-white/10 rounded-2xl p-3.5 flex flex-col justify-between">
-              <span className="text-[11px] text-white/60">End PIN</span>
-              <div className="flex items-center justify-between mt-1">
-                <span className="font-mono text-2xl font-bold text-white tracking-widest">{confirmed.end_pin}</span>
-                <button
-                  onClick={() => copyToClipboard(confirmed.end_pin, "end")}
-                  className="text-white/60 hover:text-white p-1"
-                  title="Copy PIN"
-                >
-                  <Copy className="w-4 h-4" />
-                </button>
-              </div>
-              {copiedPin === "end" && <span className="text-[10px] text-emerald-400">Copied!</span>}
             </div>
           </div>
         </div>

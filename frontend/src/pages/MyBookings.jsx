@@ -11,7 +11,8 @@ import {
   Sparkles, 
   Calendar, 
   ArrowRight,
-  UserCheck
+  UserCheck,
+  Timer
 } from "lucide-react";
 import api from "../api/client";
 import { useBookingModal } from "../context/BookingModalContext";
@@ -27,6 +28,50 @@ const STATUS_CONFIG = {
   completed: { label: "Completed", color: "bg-slate-100 text-slate-700 border-slate-200", step: 6 },
   cancelled: { label: "Cancelled", color: "bg-rose-50 text-rose-700 border-rose-200", step: 0 },
 };
+
+function formatHms(totalSeconds) {
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = Math.floor(totalSeconds % 60);
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${pad(h)}:${pad(m)}:${pad(s)}`;
+}
+
+/** Live-ticking elapsed time + running cost estimate while a visit is in
+ * progress. Purely a frontend display — the real bill is always computed
+ * server-side (with the free cushion / minimum-hours floor applied) once the
+ * customer submits the End PIN, so this is clearly labeled as an estimate. */
+function LiveTimer({ startedAt, hourlyRate }) {
+  const [now, setNow] = useState(Date.now());
+
+  useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  if (!startedAt) return null;
+  const elapsedSeconds = Math.max((now - new Date(startedAt).getTime()) / 1000, 0);
+  const elapsedHours = elapsedSeconds / 3600;
+  const estimatedCost = hourlyRate != null ? elapsedHours * hourlyRate : null;
+
+  return (
+    <div className="p-4 bg-ink text-white rounded-2xl flex items-center justify-between gap-3">
+      <div className="flex items-center gap-2">
+        <Timer className="w-4 h-4 text-emerald-400 animate-pulse" />
+        <div>
+          <div className="text-[10px] uppercase font-bold text-white/50">Time Elapsed</div>
+          <div className="font-mono text-lg font-bold tracking-wide">{formatHms(elapsedSeconds)}</div>
+        </div>
+      </div>
+      {estimatedCost != null && (
+        <div className="text-right">
+          <div className="text-[10px] uppercase font-bold text-white/50">Running Estimate</div>
+          <div className="font-display text-lg font-bold">₹{estimatedCost.toFixed(0)}</div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function MyBookings() {
   const { openQuickBook } = useBookingModal();
@@ -258,39 +303,21 @@ export default function MyBookings() {
               <div className="p-5 sm:p-6 bg-slate-50/50 space-y-4">
                 
                 {/* Security PIN Display for Active User */}
-                {isActive && (b.start_pin || b.end_pin) && (
+                {isActive && b.start_pin && (
                   <div className="grid sm:grid-cols-2 gap-3">
-                    {b.start_pin && (
-                      <div className="p-3 bg-white rounded-2xl border border-ink/10 flex items-center justify-between">
-                        <div>
-                          <div className="text-[10px] uppercase font-bold text-ink/50">Start PIN (Give at Arrival)</div>
-                          <div className="font-mono text-xl font-bold text-ink mt-0.5">{b.start_pin}</div>
-                        </div>
-                        <button
-                          onClick={() => copyPin(b.start_pin, `start-${b.id}`)}
-                          className="text-xs font-semibold text-violet hover:underline flex items-center gap-1"
-                        >
-                          <Copy className="w-3.5 h-3.5" />
-                          <span>{copiedId === `start-${b.id}` ? "Copied" : "Copy"}</span>
-                        </button>
+                    <div className="p-3 bg-white rounded-2xl border border-ink/10 flex items-center justify-between">
+                      <div>
+                        <div className="text-[10px] uppercase font-bold text-ink/50">Start PIN (Give at Arrival)</div>
+                        <div className="font-mono text-xl font-bold text-ink mt-0.5">{b.start_pin}</div>
                       </div>
-                    )}
-
-                    {b.end_pin && (
-                      <div className="p-3 bg-white rounded-2xl border border-ink/10 flex items-center justify-between">
-                        <div>
-                          <div className="text-[10px] uppercase font-bold text-ink/50">End PIN (Give to Close)</div>
-                          <div className="font-mono text-xl font-bold text-ink mt-0.5">{b.end_pin}</div>
-                        </div>
-                        <button
-                          onClick={() => copyPin(b.end_pin, `end-${b.id}`)}
-                          className="text-xs font-semibold text-violet hover:underline flex items-center gap-1"
-                        >
-                          <Copy className="w-3.5 h-3.5" />
-                          <span>{copiedId === `end-${b.id}` ? "Copied" : "Copy"}</span>
-                        </button>
-                      </div>
-                    )}
+                      <button
+                        onClick={() => copyPin(b.start_pin, `start-${b.id}`)}
+                        className="text-xs font-semibold text-violet hover:underline flex items-center gap-1"
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                        <span>{copiedId === `start-${b.id}` ? "Copied" : "Copy"}</span>
+                      </button>
+                    </div>
                   </div>
                 )}
 
@@ -318,30 +345,37 @@ export default function MyBookings() {
                 )}
 
                 {b.status === "in_progress" && (
-                  <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl space-y-2">
-                    <div className="text-xs font-bold text-emerald-900 flex items-center gap-1.5">
-                      <Clock className="w-4 h-4 text-emerald-700 animate-spin" />
-                      Care in Progress: Share End PIN to Stop Billing
-                    </div>
-                    <div className="flex gap-2">
-                      <input
-                        placeholder="Enter End PIN"
-                        className="flex-1 rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs font-mono font-bold"
-                        onChange={(e) => setPins((p) => ({ ...p, [b.id]: { ...p[b.id], end: e.target.value } }))}
-                      />
-                      <button
-                        onClick={() => submitEnd(b.id)}
-                        className="px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition-colors"
-                      >
-                        End Service &amp; Bill
-                      </button>
-                      <button
-                        onClick={() => sos(b.id)}
-                        className="px-4 py-2 rounded-xl bg-clay text-white text-xs font-bold hover:opacity-90 transition-opacity"
-                        title="Emergency SOS"
-                      >
-                        SOS 🚨
-                      </button>
+                  <div className="space-y-3">
+                    <LiveTimer startedAt={b.actual_start_at} hourlyRate={b.hourly_rate} />
+                    <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl space-y-2">
+                      <div className="text-xs font-bold text-emerald-900 flex items-center gap-1.5">
+                        <Clock className="w-4 h-4 text-emerald-700 animate-spin" />
+                        Care in Progress
+                      </div>
+                      <p className="text-[11px] text-emerald-800/80 leading-relaxed">
+                        Your Relationship Officer will share the End PIN with you once the visit is
+                        genuinely finished — enter it below the moment you get it to stop the clock.
+                      </p>
+                      <div className="flex gap-2">
+                        <input
+                          placeholder="Enter End PIN (given by your Officer)"
+                          className="flex-1 rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs font-mono font-bold"
+                          onChange={(e) => setPins((p) => ({ ...p, [b.id]: { ...p[b.id], end: e.target.value } }))}
+                        />
+                        <button
+                          onClick={() => submitEnd(b.id)}
+                          className="px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition-colors"
+                        >
+                          End Service &amp; Bill
+                        </button>
+                        <button
+                          onClick={() => sos(b.id)}
+                          className="px-4 py-2 rounded-xl bg-clay text-white text-xs font-bold hover:opacity-90 transition-opacity"
+                          title="Emergency SOS"
+                        >
+                          SOS 🚨
+                        </button>
+                      </div>
                     </div>
                   </div>
                 )}

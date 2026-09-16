@@ -657,6 +657,8 @@ export default function AdminDashboard() {
                     <Th>Amount</Th>
                     <Th>Scheduled</Th>
                     <Th>Membership</Th>
+                    <Th>PINs</Th>
+                    <Th>Officer Check-In</Th>
                   </tr>
                 </thead>
                 <tbody>
@@ -680,6 +682,16 @@ export default function AdminDashboard() {
                       <Td>{new Date(b.scheduled_start).toLocaleString()}</Td>
                       <Td>
                         <CoverageToggle booking={b} memberships={memberships} onSet={setBookingCoverage} />
+                      </Td>
+                      <Td>
+                        {["awaiting_start_pin", "in_progress", "awaiting_end_pin"].includes(b.status) && (
+                          <PinLookupButton bookingId={b.id} />
+                        )}
+                      </Td>
+                      <Td>
+                        {b.officer_token && (
+                          <OfficerLinkCell booking={b} />
+                        )}
                       </Td>
                     </tr>
                   ))}
@@ -1114,6 +1126,122 @@ function Input({ label, ...props }) {
       {label}
       <input {...props} className="mt-1 w-full text-sm border border-ink/15 rounded-lg px-3 py-2" />
     </label>
+  );
+}
+
+function OfficerLinkCell({ booking }) {
+  const [copied, setCopied] = useState(false);
+  const [proof, setProof] = useState(null);
+  const [loadingProof, setLoadingProof] = useState(false);
+
+  const link = `${window.location.origin}/officer/${booking.officer_token}`;
+
+  const copyLink = () => {
+    navigator.clipboard?.writeText(link);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  async function viewProof() {
+    setLoadingProof(true);
+    try {
+      const { data } = await api.get(`/admin/bookings/${booking.id}/proof`);
+      setProof(data);
+    } catch {
+      // ignore
+    } finally {
+      setLoadingProof(false);
+    }
+  }
+
+  return (
+    <div className="space-y-1 whitespace-nowrap">
+      <button onClick={copyLink} className="text-xs font-semibold text-violet hover:underline block">
+        {copied ? "Link Copied" : "Copy Officer Link"}
+      </button>
+      <div className="text-[10px] text-ink/40">
+        {booking.has_arrival_photo ? "✓ Arrival" : "— Arrival"} · {booking.has_completion_photo ? "✓ Completion" : "— Completion"}
+      </div>
+      {(booking.has_arrival_photo || booking.has_completion_photo) && (
+        <button onClick={viewProof} disabled={loadingProof} className="text-[11px] text-ink/60 hover:text-violet underline">
+          {loadingProof ? "Loading…" : "View Photo Proof"}
+        </button>
+      )}
+      {proof && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setProof(null)}>
+          <div className="bg-white rounded-2xl p-5 max-w-lg w-full space-y-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h3 className="font-display font-bold text-ink">{proof.booking_code} — Photo Proof</h3>
+              <button onClick={() => setProof(null)} className="text-ink/40 hover:text-ink">✕</button>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <div className="text-[10px] font-bold text-ink/50 uppercase mb-1">Arrival</div>
+                {proof.arrival_photo_base64 ? (
+                  <>
+                    <img src={`data:image/jpeg;base64,${proof.arrival_photo_base64}`} className="rounded-lg w-full" />
+                    <div className="text-[10px] text-ink/50 mt-1">{new Date(proof.arrival_photo_at).toLocaleString()}</div>
+                    {proof.arrival_lat && <div className="text-[10px] text-ink/40">{proof.arrival_lat.toFixed(4)}, {proof.arrival_lng.toFixed(4)}</div>}
+                  </>
+                ) : <div className="text-xs text-ink/40">Not submitted</div>}
+              </div>
+              <div>
+                <div className="text-[10px] font-bold text-ink/50 uppercase mb-1">Completion</div>
+                {proof.completion_photo_base64 ? (
+                  <>
+                    <img src={`data:image/jpeg;base64,${proof.completion_photo_base64}`} className="rounded-lg w-full" />
+                    <div className="text-[10px] text-ink/50 mt-1">{new Date(proof.completion_photo_at).toLocaleString()}</div>
+                    {proof.completion_lat && <div className="text-[10px] text-ink/40">{proof.completion_lat.toFixed(4)}, {proof.completion_lng.toFixed(4)}</div>}
+                  </>
+                ) : <div className="text-xs text-ink/40">Not submitted</div>}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PinLookupButton({ bookingId }) {
+  const [pins, setPins] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  async function reveal() {
+    setLoading(true);
+    setError("");
+    try {
+      const { data } = await api.get(`/admin/bookings/${bookingId}/pins`);
+      setPins(data);
+    } catch (err) {
+      setError(err.response?.data?.detail || "Could not load PINs.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (pins) {
+    return (
+      <div className="text-[11px] font-mono whitespace-nowrap">
+        <div>Start: <span className="font-bold">{pins.start_pin}</span></div>
+        <div>End: <span className="font-bold">{pins.end_pin}</span></div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <button
+        onClick={reveal}
+        disabled={loading}
+        className="text-xs font-semibold text-violet hover:underline whitespace-nowrap"
+        title="Use this when the Relationship Officer calls in to say the visit is done, so you can read them the End PIN."
+      >
+        {loading ? "Loading…" : "View PINs"}
+      </button>
+      {error && <div className="text-[10px] text-clay mt-1">{error}</div>}
+    </div>
   );
 }
 

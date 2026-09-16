@@ -23,6 +23,7 @@ import MemberDashboard from "./pages/MemberDashboard";
 import PriorityAccess from "./pages/PriorityAccess";
 import PriorityAccessProfile from "./pages/PriorityAccessProfile";
 import PriorityAccessApply from "./pages/PriorityAccessApply";
+import OfficerCapture from "./pages/OfficerCapture";
 
 function AppLayout() {
   const { openQuickBook } = useBookingModal();
@@ -49,6 +50,7 @@ function AppLayout() {
           <Route path="/priority-access/:id" element={<PriorityAccessProfile />} />
           <Route path={ADMIN_LOGIN_PATH} element={<AdminLogin />} />
           <Route path="/admin" element={<RequireAdmin><AdminDashboard /></RequireAdmin>} />
+          <Route path="/officer/:token" element={<OfficerCapture />} />
         </Routes>
       </main>
       <Footer />
