@@ -53,6 +53,27 @@ class Booking(Base):
     actual_start_at = Column(DateTime, nullable=True)
     actual_end_at = Column(DateTime, nullable=True)
 
+    # Officer capture link — a long random token that lets the assigned
+    # Relationship Officer open a no-login mobile page (see routers/officer.py)
+    # to submit their own Arrival/Completion photo proof. Generated once an
+    # agent is assigned; safe to treat like a magic link since it's long and
+    # random and only ever tied to this one booking.
+    officer_token = Column(String, unique=True, nullable=True, index=True)
+
+    # Timestamped photo proof, captured by the officer themselves through the
+    # token link above — each is stored with the exact moment it was taken and
+    # (when the phone allows it) the GPS coordinates, so a customer/officer
+    # dispute about "did they actually show up / actually finish" has real
+    # evidence instead of one person's word against the other's.
+    arrival_photo_base64 = Column(Text, nullable=True)
+    arrival_photo_at = Column(DateTime, nullable=True)
+    arrival_lat = Column(Float, nullable=True)
+    arrival_lng = Column(Float, nullable=True)
+    completion_photo_base64 = Column(Text, nullable=True)
+    completion_photo_at = Column(DateTime, nullable=True)
+    completion_lat = Column(Float, nullable=True)
+    completion_lng = Column(Float, nullable=True)
+
     # Pricing snapshot (filled once billed, so historical bookings aren't affected by rate changes)
     hourly_rate_snapshot = Column(Float, nullable=True)
     billable_hours = Column(Float, nullable=True)

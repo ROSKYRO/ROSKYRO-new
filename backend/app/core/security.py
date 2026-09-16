@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 from typing import Optional
 import random
+import secrets
 
 from jose import jwt, JWTError
 from passlib.context import CryptContext
@@ -34,3 +35,9 @@ def decode_token(token: str) -> Optional[dict]:
 def generate_pin() -> str:
     """4-digit PIN used for Start/End of every booking (own-terminology from ROSKYRO)."""
     return f"{random.randint(0, 9999):04d}"
+
+
+def generate_officer_token() -> str:
+    """Long random token for an officer's no-login capture link — see
+    Booking.officer_token and routers/officer.py."""
+    return secrets.token_urlsafe(24)

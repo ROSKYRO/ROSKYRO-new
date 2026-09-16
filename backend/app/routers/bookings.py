@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.core.deps import get_current_user, require_admin
-from app.core.security import generate_pin
+from app.core.security import generate_pin, generate_officer_token
 from app.models.user import User
 from app.models.service import Service
 from app.models.agent import Agent
@@ -16,7 +16,7 @@ from app.models.payment import Payment, PaymentStatus
 from app.models.membership import Membership, MembershipStatus
 from app.schemas.booking import (
     BookingEstimateIn, BookingEstimateOut, BookingCreateIn, BookingOut,
-    BookingWithPinsOut, SubmitStartPinIn, SubmitEndPinIn, AssignAgentIn, SosIn,
+    BookingWithPinsOut, BookingMineOut, SubmitStartPinIn, SubmitEndPinIn, AssignAgentIn, SosIn,
 )
 from app.services.pricing import estimate_booking, price_booking, waived_breakdown
 from app.services.membership_quota import relationship_officer_quota_status
@@ -29,6 +29,38 @@ def _get_service_or_404(db: Session, service_id: int) -> Service:
     if not service:
         raise HTTPException(status_code=404, detail="Service not found")
     return service
+
+
+# Statuses during which the Start PIN is still "live" — i.e. showing it again
+# to the customer (who already saw it once at booking time) is a genuine
+# safety net, not a fresh disclosure. Once it's been consumed (service is
+# in_progress or later) or the booking is closed out, it's no longer returned.
+# The End PIN is never returned to the customer here at all: per the new flow,
+# the Relationship Officer only tells the customer the End PIN once the visit
+# is genuinely finished, so the customer can't stop the billing clock early on
+# their own. (Admin/dispatch can look the End PIN up via
+# GET /admin/bookings/{id}/pins to relay it to the officer on request.)
+_START_PIN_LIVE_STATUSES = {
+    BookingStatus.requested, BookingStatus.assigned,
+    BookingStatus.en_route, BookingStatus.awaiting_start_pin,
+}
+
+
+def _with_customer_pins(booking: Booking) -> BookingMineOut:
+    """Wraps a booking for the customer's own views (/mine, /{id}): re-attaches
+    the Start PIN while it's still relevant, and includes the service's current
+    hourly rate (used by the frontend to show a live running-cost estimate
+    while the visit is in progress). Safe to do here only because both call
+    sites already scope the query to `customer_id == user.id`."""
+    data = BookingMineOut.model_validate(booking)
+    # model_validate() already copied start_pin straight off the ORM object
+    # (it's a real column on Booking), so clear it first and only re-add it
+    # while it's still "live" for the current status.
+    data.start_pin = None
+    if booking.status in _START_PIN_LIVE_STATUSES:
+        data.start_pin = booking.start_pin
+    data.hourly_rate = booking.service.hourly_rate if booking.service else None
+    return data
 
 
 @router.post("/estimate", response_model=BookingEstimateOut)
@@ -91,22 +123,23 @@ def create_booking(payload: BookingCreateIn, db: Session = Depends(get_db), user
     return booking
 
 
-@router.get("/mine", response_model=List[BookingOut])
+@router.get("/mine", response_model=List[BookingMineOut])
 def my_bookings(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    return (
+    bookings = (
         db.query(Booking)
         .filter(Booking.customer_id == user.id)
         .order_by(Booking.created_at.desc())
         .all()
     )
+    return [_with_customer_pins(b) for b in bookings]
 
 
-@router.get("/{booking_id}", response_model=BookingOut)
+@router.get("/{booking_id}", response_model=BookingMineOut)
 def get_booking(booking_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     booking = db.query(Booking).get(booking_id)
     if not booking or booking.customer_id != user.id:
         raise HTTPException(status_code=404, detail="Booking not found")
-    return booking
+    return _with_customer_pins(booking)
 
 
 @router.post("/{booking_id}/assign", response_model=BookingOut)
@@ -120,6 +153,8 @@ def assign_agent(booking_id: int, payload: AssignAgentIn, db: Session = Depends(
 
     booking.agent_id = agent.id
     booking.status = BookingStatus.assigned
+    if not booking.officer_token:
+        booking.officer_token = generate_officer_token()
     db.commit()
     db.refresh(booking)
     return booking

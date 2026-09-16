@@ -35,6 +35,35 @@ class AdminBookingOut(BaseModel):
     membership_id: Optional[int] = None
     sos_triggered: bool
     created_at: datetime
+    officer_token: Optional[str] = None
+    has_arrival_photo: bool = False
+    has_completion_photo: bool = False
+
+
+class AdminBookingPinsOut(BaseModel):
+    """For dispatch use only: lets an admin look up a booking's PINs on demand
+    when a Relationship Officer calls in — e.g. to relay the End PIN once the
+    officer reports the visit is finished. Not part of the regular bookings
+    list so PINs aren't sitting in view by default."""
+    booking_code: str
+    status: BookingStatus
+    start_pin: str
+    end_pin: str
+
+
+class AdminBookingProofOut(BaseModel):
+    """Timestamped photo proof an officer captured through their own no-login
+    link (see routers/officer.py), for admin to pull up if a customer or
+    officer ever disputes whether/when a visit actually happened."""
+    booking_code: str
+    arrival_photo_base64: Optional[str] = None
+    arrival_photo_at: Optional[datetime] = None
+    arrival_lat: Optional[float] = None
+    arrival_lng: Optional[float] = None
+    completion_photo_base64: Optional[str] = None
+    completion_photo_at: Optional[datetime] = None
+    completion_lat: Optional[float] = None
+    completion_lng: Optional[float] = None
 
 
 class ComplaintOut(BaseModel):

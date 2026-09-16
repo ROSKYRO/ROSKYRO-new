@@ -29,7 +29,7 @@ from app.models.priority_access import (
     PriorityAccessAvailability, AppointmentRequest,
 )
 from app.schemas.admin import (
-    CustomerOut, AdminBookingOut, ComplaintOut, ComplaintUpdateIn,
+    CustomerOut, AdminBookingOut, AdminBookingPinsOut, AdminBookingProofOut, ComplaintOut, ComplaintUpdateIn,
     TeamMemberOut, TeamMemberCreateIn, TeamMemberUpdateIn,
     AdminMembershipOut, AdminMembershipStatusIn, AdminInvoiceOut,
     AdminPartnerApplicationOut, AdminApplicationReviewIn,
@@ -171,6 +171,9 @@ def _booking_to_admin_out(b: Booking) -> AdminBookingOut:
         membership_id=b.membership_id,
         sos_triggered=b.sos_triggered,
         created_at=b.created_at,
+        officer_token=b.officer_token,
+        has_arrival_photo=bool(b.arrival_photo_base64),
+        has_completion_photo=bool(b.completion_photo_base64),
     )
 
 
@@ -187,6 +190,28 @@ def list_all_bookings(
         query = query.filter(Booking.status == status)
     bookings = query.limit(500).all()
     return [_booking_to_admin_out(b) for b in bookings]
+
+
+@router.get("/bookings/{booking_id}/pins", response_model=AdminBookingPinsOut)
+def get_booking_pins(booking_id: int, db: Session = Depends(get_db), _: User = Depends(require_admin)):
+    """Dispatch lookup: when a Relationship Officer calls in to say a visit is
+    finished, admin uses this to read the End PIN back to them, who then tells
+    the customer — the customer never sees the End PIN in the app in advance."""
+    booking = db.query(Booking).get(booking_id)
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    return booking
+
+
+@router.get("/bookings/{booking_id}/proof", response_model=AdminBookingProofOut)
+def get_booking_proof(booking_id: int, db: Session = Depends(get_db), _: User = Depends(require_admin)):
+    """Pulls up the officer's timestamped Arrival/Completion photos (with GPS,
+    when the phone provided it) for a booking — for resolving a dispute about
+    whether or when the visit actually happened."""
+    booking = db.query(Booking).get(booking_id)
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    return booking
 
 
 @router.get("/complaints", response_model=List[ComplaintOut])

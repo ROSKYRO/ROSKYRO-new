@@ -66,9 +66,25 @@ class BookingOut(BaseModel):
 
 
 class BookingWithPinsOut(BookingOut):
-    """Returned only to the customer right after booking - carries the PINs."""
+    """Returned only to the customer right after booking — carries the Start PIN
+    only. The End PIN is deliberately withheld here: it's only revealed by the
+    Relationship Officer once the visit is genuinely finished (see
+    app/routers/admin.py::get_booking_pins), so the customer can't stop the
+    billing clock early on their own."""
     start_pin: Optional[str]
-    end_pin: Optional[str]
+
+
+class BookingMineOut(BookingOut):
+    """Used for GET /bookings/mine and GET /bookings/{id} — the customer's own
+    booking, so re-showing the Start PIN here (as a "I forgot it" safety net) is
+    safe; it's still the same customer who saw it once already at booking time.
+    It's only populated while still relevant (see
+    app/routers/bookings.py::_with_customer_pins), so it disappears again once
+    used or once the booking is completed/cancelled. The End PIN is never
+    included here — the customer only ever learns it verbally from the
+    Relationship Officer at job completion, then types it in to stop the clock."""
+    start_pin: Optional[str] = None
+    hourly_rate: Optional[float] = None
 
 
 class SubmitStartPinIn(BaseModel):
