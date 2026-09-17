@@ -10,6 +10,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from app.core.config import settings
 from app.core.limiter import limiter
 from app.db.session import Base, engine
+from app.db.migrate import sync_missing_columns
 from app.routers import (
     auth, services, bookings, agents, misc, admin, membership, priority_access, officer,
     hospitals, hospital_admin,
@@ -17,6 +18,10 @@ from app.routers import (
 
 # Auto-create tables on boot for simplicity (swap for Alembic migrations in production).
 Base.metadata.create_all(bind=engine)
+# Then patch in any columns a model gained on an already-existing table
+# (e.g. User.hospital_id) — create_all() alone never does this. See
+# db/migrate.py for exactly why this step exists.
+sync_missing_columns(engine, Base)
 
 app = FastAPI(
     title=f"{settings.APP_NAME} API",
