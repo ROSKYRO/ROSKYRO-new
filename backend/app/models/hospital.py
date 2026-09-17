@@ -53,3 +53,4 @@ class Hospital(Base):
     city = relationship("City")
     staff = relationship("User", back_populates="hospital")
     patients = relationship("PatientCase", back_populates="hospital", cascade="all, delete-orphan")
+    invoices = relationship("HospitalInvoice", back_populates="hospital", cascade="all, delete-orphan")

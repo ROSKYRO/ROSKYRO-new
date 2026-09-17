@@ -12,10 +12,11 @@ from app.models.membership import (
 from app.models.priority_access import PartnerApplication, Partner, AppointmentRequest
 from app.models.hospital import Hospital
 from app.models.patient_case import PatientCase, DailyOfficerAssignment
+from app.models.hospital_invoice import HospitalInvoice
 
 __all__ = [
     "User", "Agent", "Service", "City", "Booking", "Payment", "Review", "Complaint",
     "Membership", "FamilyMember", "CareRequest", "CareDocument", "TransportRequest", "MembershipInvoice",
     "PartnerApplication", "Partner", "AppointmentRequest",
-    "Hospital", "PatientCase", "DailyOfficerAssignment",
+    "Hospital", "PatientCase", "DailyOfficerAssignment", "HospitalInvoice",
 ]

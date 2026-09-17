@@ -103,10 +103,18 @@ class PatientCase(Base):
     discharge_force_closed_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     discharge_force_close_reason = Column(Text, nullable=True)
 
+    # --- Monthly hospital billing ---
+    # NULL until this (discharged) case has been swept into a HospitalInvoice
+    # — see services/hospital_billing.py. A case still active/pending_discharge
+    # always has this NULL; it only ever gets stamped once, at the moment an
+    # invoice run picks it up, so it can never be billed twice.
+    invoice_id = Column(Integer, ForeignKey("hospital_invoices.id"), nullable=True, index=True)
+
     created_at = Column(DateTime, default=datetime.utcnow)
     discharged_at = Column(DateTime, nullable=True)  # set only once both required sides above have confirmed
 
     hospital = relationship("Hospital", back_populates="patients")
+    invoice = relationship("HospitalInvoice", back_populates="cases")
     created_by = relationship("User", foreign_keys=[created_by_id])
     hospital_discharge_by = relationship("User", foreign_keys=[hospital_discharge_by_id])
     discharge_force_closed_by = relationship("User", foreign_keys=[discharge_force_closed_by_id])

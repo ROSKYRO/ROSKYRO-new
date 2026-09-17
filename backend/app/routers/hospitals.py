@@ -13,11 +13,13 @@ from app.core.config import settings
 from app.models.user import User, UserRole
 from app.models.hospital import Hospital
 from app.models.patient_case import PatientCase, PatientCaseStatus, DailyOfficerAssignment
+from app.models.hospital_invoice import HospitalInvoice
 from app.schemas.auth import LoginIn, TokenOut
 from app.schemas.hospital import (
     PublicHospitalOut, PatientCaseCreateIn, PatientCaseStatusIn, PatientCaseOut,
     DailyAssignmentOut, HospitalDashboardOut, HospitalDischargeIn, CaseAlertOut,
 )
+from app.schemas.hospital_invoice import HospitalInvoiceOut
 from app.models.patient_case import DailyAssignmentStatus
 from app.services.patient_billing import (
     coverage_days_and_billing, apply_hospital_discharge_confirmation,
@@ -347,3 +349,23 @@ def undo_hospital_discharge(
     db.commit()
     db.refresh(case)
     return _to_case_out(case)
+
+
+# ---------------------------------------------------------------------------
+# Monthly billing — read-only for the Hospital Console. Only ROSKYRO Admin
+# generates invoices and marks them paid (see routers/hospital_admin.py); a
+# hospital just needs to see what's been invoiced and what's still pending.
+# ---------------------------------------------------------------------------
+
+@router.get("/invoices", response_model=List[HospitalInvoiceOut])
+def list_my_invoices(db: Session = Depends(get_db), staff: User = Depends(require_hospital_staff)):
+    from app.routers.hospital_admin import _to_invoice_out  # shared conversion, avoids duplicating it here
+
+    invoices = (
+        db.query(HospitalInvoice)
+        .options(joinedload(HospitalInvoice.cases))
+        .filter(HospitalInvoice.hospital_id == staff.hospital_id)
+        .order_by(HospitalInvoice.generated_at.desc())
+        .all()
+    )
+    return [_to_invoice_out(inv) for inv in invoices]

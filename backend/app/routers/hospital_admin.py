@@ -12,17 +12,24 @@ from app.models.user import User, UserRole
 from app.models.hospital import Hospital
 from app.models.agent import Agent
 from app.models.patient_case import PatientCase, PatientCaseStatus, DailyOfficerAssignment, DailyAssignmentStatus
+from app.models.hospital_invoice import HospitalInvoice
 from app.schemas.hospital import (
     HospitalOut, HospitalCreateIn, HospitalUpdateIn, HospitalStaffCreateIn, HospitalStaffOut,
     PatientCaseOut, DailyAssignmentOut, AssignOfficerIn, ForceCloseDischargeIn,
     AssignmentStatusIn, OfficerLinkOut, CaseAlertOut, OfficerRosterOut, OfficerRosterCaseOut,
     OfficerPortalLinkOut,
 )
+from app.schemas.hospital_invoice import (
+    GenerateInvoiceIn, HospitalInvoiceOut, InvoiceCaseOut, MarkInvoicePaidIn, PendingBillingOut,
+)
 from app.services.patient_billing import (
     coverage_days_and_billing, officer_on_duty, build_case_alerts,
     force_close_discharge, issue_officer_discharge_token, officer_discharge_link_is_live,
     recompute_discharge_status, discharge_waiting_on, discharge_pending_since,
     requires_officer_confirmation, DischargeValidationError,
+)
+from app.services.hospital_billing import (
+    uninvoiced_discharged_cases, generate_invoice, mark_invoice_paid, InvoiceError,
 )
 from app.services.officer_roster import (
     check_officer_eligible, check_capacity, build_officer_roster,
@@ -523,3 +530,120 @@ def regenerate_officer_portal_link(agent_id: int, db: Session = Depends(get_db),
     token = issue_portal_token(agent, rotate=True)
     db.commit()
     return OfficerPortalLinkOut(portal_token=token, expires_at=agent.portal_token_expires_at)
+
+
+# ---------------------------------------------------------------------------
+# Monthly hospital billing — turns discharged, not-yet-invoiced patient cases
+# into a HospitalInvoice. See services/hospital_billing.py for the rule:
+# only cases that have ACTUALLY discharged are ever swept in; a case still
+# active or pending_discharge keeps billing quietly and lands on whichever
+# invoice gets generated after it eventually discharges.
+# ---------------------------------------------------------------------------
+
+def _to_invoice_out(inv: HospitalInvoice) -> HospitalInvoiceOut:
+    cases_out = []
+    for c in inv.cases:
+        days, amount = coverage_days_and_billing(c)
+        cases_out.append(InvoiceCaseOut(
+            case_id=c.id, patient_name=c.patient_name, admission_date=c.admission_date,
+            discharged_at=c.discharged_at, days_covered=days, amount=amount,
+        ))
+    return HospitalInvoiceOut(
+        id=inv.id, hospital_id=inv.hospital_id, hospital_name=inv.hospital.name if inv.hospital else None,
+        period_start=inv.period_start, period_end=inv.period_end, case_count=inv.case_count,
+        total_amount=inv.total_amount, status=inv.status, generated_at=inv.generated_at,
+        paid_at=inv.paid_at, payment_reference=inv.payment_reference, payment_note=inv.payment_note,
+        cases=cases_out,
+    )
+
+
+@router.get("/hospitals/{hospital_id}/pending-billing", response_model=PendingBillingOut)
+def preview_pending_billing(hospital_id: int, db: Session = Depends(get_db), admin: User = Depends(require_admin)):
+    """What the NEXT invoice for this hospital would look like right now —
+    every discharged, not-yet-invoiced case and what it totals — without
+    actually generating anything."""
+    hospital = db.query(Hospital).get(hospital_id)
+    if not hospital:
+        raise HTTPException(status_code=404, detail="Hospital not found")
+    cases = uninvoiced_discharged_cases(db, hospital_id)
+    total = round(sum(coverage_days_and_billing(c)[1] for c in cases), 2)
+    return PendingBillingOut(case_count=len(cases), total_amount=total)
+
+
+@router.post("/hospitals/{hospital_id}/invoices", response_model=HospitalInvoiceOut)
+def create_invoice(
+    hospital_id: int, payload: GenerateInvoiceIn, db: Session = Depends(get_db), admin: User = Depends(require_admin),
+):
+    """Generate this hospital's next invoice — every discharged case that
+    hasn't been billed yet, whatever month it was actually admitted or
+    discharged in. A case still active/pending_discharge is never included;
+    it'll show up on a later invoice once it actually discharges."""
+    hospital = db.query(Hospital).get(hospital_id)
+    if not hospital:
+        raise HTTPException(status_code=404, detail="Hospital not found")
+
+    today = datetime.utcnow().date()
+    period_start = payload.period_start or today.replace(day=1)
+    if payload.period_end:
+        period_end = payload.period_end
+    else:
+        import calendar
+        last_day = calendar.monthrange(today.year, today.month)[1]
+        period_end = date_cls(today.year, today.month, last_day)
+
+    try:
+        invoice = generate_invoice(db, hospital, period_start, period_end, admin.id)
+    except InvoiceError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    invoice = (
+        db.query(HospitalInvoice)
+        .options(joinedload(HospitalInvoice.cases), joinedload(HospitalInvoice.hospital))
+        .filter(HospitalInvoice.id == invoice.id)
+        .first()
+    )
+    return _to_invoice_out(invoice)
+
+
+@router.get("/invoices", response_model=List[HospitalInvoiceOut])
+def list_all_invoices(
+    hospital_id: Optional[int] = None,
+    status: Optional[str] = None,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    """Every hospital invoice ROSKYRO has ever generated — the billing tab's
+    single source of truth."""
+    query = db.query(HospitalInvoice).options(
+        joinedload(HospitalInvoice.cases), joinedload(HospitalInvoice.hospital),
+    )
+    if hospital_id:
+        query = query.filter(HospitalInvoice.hospital_id == hospital_id)
+    if status:
+        query = query.filter(HospitalInvoice.status == status)
+    invoices = query.order_by(HospitalInvoice.generated_at.desc()).limit(300).all()
+    return [_to_invoice_out(inv) for inv in invoices]
+
+
+@router.post("/invoices/{invoice_id}/mark-paid", response_model=HospitalInvoiceOut)
+def mark_paid(
+    invoice_id: int, payload: MarkInvoicePaidIn, db: Session = Depends(get_db), admin: User = Depends(require_admin),
+):
+    """Admin confirms a hospital's payment has actually come in (e.g. a bank
+    transfer verified on WhatsApp) — no payment gateway wired up yet, same
+    manual-confirm pattern as Membership invoices."""
+    invoice = (
+        db.query(HospitalInvoice)
+        .options(joinedload(HospitalInvoice.cases), joinedload(HospitalInvoice.hospital))
+        .filter(HospitalInvoice.id == invoice_id)
+        .first()
+    )
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+    try:
+        mark_invoice_paid(invoice, admin.id, payload.payment_reference, payload.payment_note)
+    except InvoiceError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    db.commit()
+    db.refresh(invoice)
+    return _to_invoice_out(invoice)
