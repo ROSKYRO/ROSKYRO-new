@@ -4,6 +4,8 @@ import api from "../api/client";
 
 const TABS = [
   ["board", "Ops Board — Assign Officers"],
+  ["officers", "Officers"],
+  ["attention", "Needs Attention"],
   ["hospitals", "Hospitals"],
 ];
 
@@ -12,6 +14,7 @@ export default function AdminHospitalProgram() {
   const [hospitals, setHospitals] = useState([]);
   const [agents, setAgents] = useState([]);
   const [cases, setCases] = useState([]);
+  const [officers, setOfficers] = useState([]);
   const [showUnassignedOnly, setShowUnassignedOnly] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -25,15 +28,37 @@ export default function AdminHospitalProgram() {
   }
   async function loadCases() {
     setLoading(true);
-    const { data } = await api.get("/admin/hospital-program/patients", {
-      params: { status: "active", unassigned_today: showUnassignedOnly || undefined },
-    });
-    setCases(data);
-    setLoading(false);
+    try {
+      // "Needs attention" is the closest thing to a reminder feed that needs
+      // no SMS/email provider: every open case carrying a warning/critical
+      // alert — stuck discharges, uncovered patients, overdue expected
+      // discharges, dead officer links — worst first.
+      const url = tab === "attention"
+        ? "/admin/hospital-program/discharge-alerts"
+        : "/admin/hospital-program/patients";
+      const params = tab === "attention"
+        ? {}
+        : { status: "active", unassigned_today: showUnassignedOnly || undefined };
+      const { data } = await api.get(url, { params });
+      setCases(data);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function loadOfficers() {
+    setLoading(true);
+    try {
+      const { data } = await api.get("/admin/hospital-program/officers");
+      setOfficers(data);
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => { loadHospitals(); loadAgents(); }, []);
-  useEffect(() => { if (tab === "board") loadCases(); }, [tab, showUnassignedOnly]); // eslint-disable-line
+  useEffect(() => { if (tab === "board" || tab === "attention") loadCases(); }, [tab, showUnassignedOnly]); // eslint-disable-line
+  useEffect(() => { if (tab === "officers") loadOfficers(); }, [tab]); // eslint-disable-line
 
   return (
     <div className="max-w-6xl mx-auto px-5 py-12">
@@ -42,8 +67,8 @@ export default function AdminHospitalProgram() {
         <Link to="/admin" className="text-sm text-violet font-semibold">← Back to Admin</Link>
       </div>
       <p className="text-ink/60 mb-8">
-        One dedicated Relationship Officer, per patient, per day — assign across a hospital's whole partner
-        network from here.
+        One dedicated Relationship Officer per patient, assigned at admission — coverage and billing keep running
+        day by day until both the hospital and that officer confirm the actual discharge date & time.
       </p>
 
       <div className="flex gap-6 border-b border-ink/10 mb-8 overflow-x-auto">
@@ -60,8 +85,9 @@ export default function AdminHospitalProgram() {
         ))}
       </div>
 
-      {tab === "board" && (
+      {(tab === "board" || tab === "attention") && (
         <OpsBoard
+          attentionMode={tab === "attention"}
           cases={cases}
           agents={agents}
           loading={loading}
@@ -71,6 +97,10 @@ export default function AdminHospitalProgram() {
         />
       )}
 
+      {tab === "officers" && (
+        <OfficersTab officers={officers} loading={loading} onChanged={loadOfficers} />
+      )}
+
       {tab === "hospitals" && (
         <HospitalsTab hospitals={hospitals} onChanged={loadHospitals} />
       )}
@@ -78,21 +108,155 @@ export default function AdminHospitalProgram() {
   );
 }
 
-function OpsBoard({ cases, agents, loading, showUnassignedOnly, setShowUnassignedOnly, onAssigned }) {
+function OpsBoard({ cases, agents, loading, showUnassignedOnly, setShowUnassignedOnly, onAssigned, attentionMode }) {
   return (
     <div>
-      <label className="flex items-center gap-2 text-sm text-ink/70 mb-5">
-        <input type="checkbox" checked={showUnassignedOnly} onChange={(e) => setShowUnassignedOnly(e.target.checked)} />
-        Show only patients still waiting on today's officer
-      </label>
+      {!attentionMode && (
+        <label className="flex items-center gap-2 text-sm text-ink/70 mb-5">
+          <input type="checkbox" checked={showUnassignedOnly} onChange={(e) => setShowUnassignedOnly(e.target.checked)} />
+          Show only patients genuinely uncovered today
+        </label>
+      )}
+      {attentionMode && (
+        <p className="text-sm text-ink/60 mb-5">
+          Open cases with something that needs chasing — stuck discharges still billing, uncovered patients,
+          overdue expected discharges, dead officer links. Most urgent first.
+        </p>
+      )}
 
       {loading && <p className="text-ink/50 mb-4">Loading…</p>}
-      {!loading && cases.length === 0 && <p className="text-ink/60">Nothing to show here right now.</p>}
+      {!loading && cases.length === 0 && (
+        <p className="text-ink/60">{attentionMode ? "Nothing needs chasing right now." : "Nothing to show here right now."}</p>
+      )}
 
       <div className="space-y-4">
         {cases.map((c) => (
           <CaseRow key={c.id} c={c} agents={agents} onAssigned={onAssigned} />
         ))}
+      </div>
+    </div>
+  );
+}
+
+const ALERT_STYLES = {
+  critical: "bg-rose-50 border-rose-200 text-rose-700",
+  warning: "bg-amber-50 border-amber-200 text-amber-700",
+  info: "bg-slate-50 border-ink/10 text-ink/60",
+};
+
+function AlertList({ alerts }) {
+  if (!alerts?.length) return null;
+  return (
+    <div className="space-y-1.5 mb-3">
+      {alerts.map((a) => (
+        <div key={a.code} className={`text-xs px-3 py-2 rounded-lg border font-medium ${ALERT_STYLES[a.severity] || ALERT_STYLES.info}`}>
+          {a.message}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// "What is this officer doing right now" — answered directly, instead of
+// scanning every patient card on the Ops Board to piece it together.
+function OfficersTab({ officers, loading, onChanged }) {
+  return (
+    <div>
+      <p className="text-sm text-ink/60 mb-5">
+        Every Relationship Officer currently on the Hospital Concierge Program — who they're covering today, at
+        which hospitals, whether they're over the daily cap, and this month's coverage payout.
+      </p>
+      {loading && <p className="text-ink/50 mb-4">Loading…</p>}
+      {!loading && officers.length === 0 && <p className="text-ink/60">No officer has a hospital patient yet.</p>}
+      <div className="space-y-4">
+        {officers.map((o) => (
+          <OfficerCard key={o.agent_id} o={o} onChanged={onChanged} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function OfficerCard({ o, onChanged }) {
+  const [busy, setBusy] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const portalLink = o.portal_token ? `${window.location.origin}/officer/portal/${o.portal_token}` : null;
+
+  async function regenerate() {
+    setBusy(true);
+    try {
+      await api.post(`/admin/hospital-program/officers/${o.agent_id}/portal-link`);
+      onChanged();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function copyLink() {
+    if (!portalLink) return;
+    navigator.clipboard?.writeText(portalLink);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  return (
+    <div className={`border rounded-card p-5 ${o.over_capacity_today ? "border-clay/40" : "border-ink/10"}`}>
+      <div className="flex flex-wrap items-start justify-between gap-3 mb-2">
+        <div>
+          <div className="font-semibold text-ink">{o.full_name} · {o.phone}</div>
+          <div className="text-sm text-ink/50">
+            {o.status} · {o.is_fully_verified ? "fully verified" : "verification incomplete"} ·{" "}
+            {o.is_available ? "available" : "marked unavailable"}
+          </div>
+        </div>
+        <div className="flex flex-col items-end gap-1">
+          <span className={`text-xs font-semibold px-3 py-1 rounded-full ${o.over_capacity_today ? "bg-clay/15 text-clay" : "bg-violet/15 text-violet"}`}>
+            {o.today_patient_count} patient{o.today_patient_count === 1 ? "" : "s"} today
+            {o.over_capacity_today ? " — over daily cap" : ""}
+          </span>
+          {o.no_show_days_30d > 0 && (
+            <span className="text-[10px] text-clay">{o.no_show_days_30d} no-show day{o.no_show_days_30d === 1 ? "" : "s"} (30d)</span>
+          )}
+        </div>
+      </div>
+
+      {o.today_cases.length > 0 && (
+        <div className="flex flex-wrap gap-2 mb-3">
+          {o.today_cases.map((tc) => (
+            <span key={tc.case_id} className="text-xs bg-parchment border border-ink/10 rounded-full px-3 py-1">
+              {tc.patient_name} — {tc.hospital_name || "—"}{tc.is_fallback ? " (standing)" : ""}
+            </span>
+          ))}
+        </div>
+      )}
+
+      <div className="text-xs text-ink/50 flex flex-wrap gap-x-4 gap-y-1">
+        <span>Active cases: {o.active_case_count}</span>
+        <span>Days covered this month: {o.days_covered_this_month}</span>
+        <span>
+          Payout estimate this month: {o.hospital_daily_rate != null
+            ? `₹${o.payout_estimate_this_month.toLocaleString("en-IN")}`
+            : "no daily rate set"}
+        </span>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3 mt-3 pt-3 border-t border-ink/10">
+        {portalLink && (
+          <button type="button" onClick={copyLink} className="text-xs font-semibold text-violet hover:underline">
+            {copied ? "Copied!" : "Copy their \"my day\" link"}
+          </button>
+        )}
+        <button type="button" disabled={busy} onClick={regenerate} className="text-xs font-semibold text-clay hover:underline disabled:opacity-50">
+          {portalLink ? "Regenerate link" : "Issue portal link"}
+        </button>
+        <span className="text-[10px] text-ink/40">
+          {portalLink
+            ? o.portal_link_live
+              ? `valid till ${new Date(o.portal_token_expires_at).toLocaleDateString()}`
+              : "link expired"
+            : "no link issued yet — they can't see their day themselves"}
+        </span>
       </div>
     </div>
   );
@@ -105,6 +269,14 @@ function CaseRow({ c, agents, onAssigned }) {
   const [note, setNote] = useState("");
   const [assigning, setAssigning] = useState(false);
   const [error, setError] = useState("");
+  const [copied, setCopied] = useState(false);
+  const [showForceClose, setShowForceClose] = useState(false);
+  const [forceReason, setForceReason] = useState("");
+  const [forceDatetime, setForceDatetime] = useState(nowLocalInput());
+  const [busy, setBusy] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [conflict, setConflict] = useState(""); // 409 message from the last assign attempt
+  const [forceAssign, setForceAssign] = useState(false);
 
   async function assign(e) {
     e.preventDefault();
@@ -114,15 +286,91 @@ function CaseRow({ c, agents, onAssigned }) {
     try {
       await api.post(`/admin/hospital-program/patients/${c.id}/assign`, {
         agent_id: Number(agentId), start_date: startDate, end_date: endDate, note: note || null,
+        force: forceAssign,
       });
       setNote("");
+      setConflict("");
+      setForceAssign(false);
       onAssigned();
     } catch (err) {
-      setError(err.response?.data?.detail || "Could not assign.");
+      const detail = err.response?.data?.detail || "Could not assign.";
+      if (err.response?.status === 409) {
+        // A soft block — the officer is marked unavailable, or this would put
+        // them over the daily patient cap. Surface it as a conflict to
+        // consciously override, not a dead end.
+        setConflict(detail);
+      } else {
+        // A hard block (officer not active / not fully verified) has no
+        // override — force would be silently ignored server-side too.
+        setError(detail);
+        setConflict("");
+      }
     } finally {
       setAssigning(false);
     }
   }
+
+  async function forceClose(e) {
+    e.preventDefault();
+    setError("");
+    setBusy(true);
+    try {
+      await api.post(`/admin/hospital-program/patients/${c.id}/force-close-discharge`, {
+        reason: forceReason,
+        discharge_datetime: forceDatetime ? new Date(forceDatetime).toISOString() : null,
+      });
+      setShowForceClose(false);
+      setForceReason("");
+      onAssigned();
+    } catch (err) {
+      setError(err.response?.data?.detail || "Could not force-close this discharge.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function regenerateLink() {
+    setError("");
+    setBusy(true);
+    try {
+      await api.post(`/admin/hospital-program/patients/${c.id}/discharge-link`);
+      onAssigned();
+    } catch (err) {
+      setError(err.response?.data?.detail || "Could not regenerate the link.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function setDayStatus(assignmentId, status) {
+    setError("");
+    setBusy(true);
+    try {
+      await api.patch(`/admin/hospital-program/assignments/${assignmentId}`, { status });
+      onAssigned();
+    } catch (err) {
+      setError(err.response?.data?.detail || "Could not update that day.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const dischargeLink = c.officer_discharge_token
+    ? `${window.location.origin}/officer/discharge/${c.officer_discharge_token}`
+    : null;
+
+  function copyLink() {
+    if (!dischargeLink) return;
+    navigator.clipboard?.writeText(dischargeLink);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  // The officer badge now reflects who is genuinely covering today — including
+  // the case's standing officer on days with no explicit daily row. Only a
+  // real gap (nobody assigned, or today marked a no-show) shows as a problem.
+  const coveredToday = Boolean(c.today_officer_name);
+  const canForceClose = c.status === "pending_discharge";
 
   return (
     <div className="border border-ink/10 rounded-card p-5">
@@ -132,20 +380,76 @@ function CaseRow({ c, agents, onAssigned }) {
           <div className="text-sm text-ink/50">
             {c.attendant_name || "—"} · {c.attendant_phone} · ₹{c.daily_rate}/day
           </div>
-          <div className="text-sm text-ink/50">Admitted {c.admission_date}</div>
+          <div className="text-sm text-ink/50">
+            Admitted {c.admission_date} · {c.days_covered} day{c.days_covered === 1 ? "" : "s"} so far · ₹{c.billed_estimate.toLocaleString("en-IN")} billed
+            {c.no_show_days > 0 && <span className="text-clay"> · {c.no_show_days} no-show day{c.no_show_days === 1 ? "" : "s"}</span>}
+          </div>
         </div>
-        <span className={`text-xs font-semibold px-3 py-1 rounded-full ${c.today_officer_name ? "bg-violet/15 text-violet" : "bg-clay/15 text-clay"}`}>
-          {c.today_officer_name ? `Today: ${c.today_officer_name}` : "Needs today's officer"}
-        </span>
+        <div className="flex flex-col items-end gap-1">
+          <span className={`text-xs font-semibold px-3 py-1 rounded-full ${coveredToday ? "bg-violet/15 text-violet" : "bg-clay/15 text-clay"}`}>
+            {coveredToday
+              ? `Today: ${c.today_officer_name}${c.today_officer_is_fallback ? " (standing)" : ""}`
+              : "Needs today's officer"}
+          </span>
+          {c.status === "pending_discharge" && (
+            <span className="text-xs font-semibold px-3 py-1 rounded-full bg-amber-100 text-amber-700">
+              Awaiting {c.discharge_waiting_on === "officer" ? "officer's" : "hospital's"} discharge confirmation
+            </span>
+          )}
+          {!c.officer_confirmation_required && c.status !== "discharged" && (
+            <span className="text-[10px] text-ink/40">No RO assigned — hospital's confirmation alone will close this</span>
+          )}
+        </div>
+      </div>
+
+      <AlertList alerts={c.alerts} />
+
+      {c.assigned_agent_name && (
+        <div className="text-xs text-ink/50 mb-3 flex flex-wrap items-center gap-2">
+          <span>Assigned Relationship Officer: <strong className="text-ink/70">{c.assigned_agent_name}</strong></span>
+          {dischargeLink && c.officer_discharge_link_live && (
+            <button type="button" onClick={copyLink} className="font-semibold text-violet hover:underline">
+              {copied ? "Copied!" : "Copy officer's discharge link"}
+            </button>
+          )}
+          <button type="button" disabled={busy} onClick={regenerateLink} className="font-semibold text-clay hover:underline disabled:opacity-50">
+            Regenerate link
+          </button>
+          <span className="text-ink/40">
+            {c.officer_discharge_link_live
+              ? c.officer_discharge_token_expires_at
+                ? `· link valid till ${new Date(c.officer_discharge_token_expires_at).toLocaleDateString()}`
+                : "· link has no expiry (legacy) — regenerate to put it on a timer"
+              : "· link expired or revoked"}
+          </span>
+        </div>
+      )}
+
+      <div className="text-xs text-ink/40 mb-3">
+        Hospital confirmed: {c.hospital_discharge_at ? `${new Date(c.hospital_discharge_at).toLocaleString()}${c.hospital_discharge_by_name ? ` by ${c.hospital_discharge_by_name}` : ""}` : "no"}
+        {" · "}Officer confirmed: {c.officer_discharge_at ? new Date(c.officer_discharge_at).toLocaleString() : "no"}
+        {c.discharge_force_closed_at && (
+          <span className="block text-clay font-semibold mt-1">
+            Force-closed by {c.discharge_force_closed_by_name || "admin"} on {new Date(c.discharge_force_closed_at).toLocaleString()} — {c.discharge_force_close_reason}
+          </span>
+        )}
       </div>
 
       <form onSubmit={assign} className="flex flex-wrap gap-2 items-end">
         <div>
           <label className="text-xs text-ink/50 block">Relationship Officer</label>
-          <select required value={agentId} onChange={(e) => setAgentId(e.target.value)} className="text-sm border border-ink/15 rounded-lg px-3 py-2 bg-white">
+          <select
+            required value={agentId}
+            onChange={(e) => { setAgentId(e.target.value); setConflict(""); setForceAssign(false); }}
+            className="text-sm border border-ink/15 rounded-lg px-3 py-2 bg-white"
+          >
             <option value="">Select…</option>
             {agents.map((a) => (
-              <option key={a.id} value={a.id}>{a.full_name}{a.is_available ? "" : " (unavailable)"}</option>
+              <option key={a.id} value={a.id} disabled={a.status !== "active" || !a.is_fully_verified}>
+                {a.full_name}
+                {a.status !== "active" ? ` (${a.status})` : !a.is_fully_verified ? " (verification incomplete)" : ""}
+                {a.status === "active" && a.is_fully_verified && !a.is_available ? " (unavailable)" : ""}
+              </option>
             ))}
           </select>
         </div>
@@ -159,12 +463,89 @@ function CaseRow({ c, agents, onAssigned }) {
         </div>
         <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Note (optional)" className="flex-1 min-w-[140px] text-sm border border-ink/15 rounded-lg px-3 py-2" />
         <button disabled={assigning} className="text-sm font-semibold px-4 py-2 rounded-full bg-violet text-white disabled:opacity-60">
-          {assigning ? "Assigning…" : "Assign"}
+          {assigning ? "Assigning…" : forceAssign ? "Assign anyway" : "Assign"}
         </button>
       </form>
+
+      {conflict && (
+        <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700">
+          <p className="font-medium">{conflict}</p>
+          <label className="flex items-center gap-2 mt-2 font-semibold">
+            <input type="checkbox" checked={forceAssign} onChange={(e) => setForceAssign(e.target.checked)} />
+            Assign anyway (this is a conscious override, not a default)
+          </label>
+        </div>
+      )}
+      <p className="text-[10px] text-ink/40 mt-2">
+        This just seeds the assignment history for that stretch — the officer stays on the case (and counts as
+        today's officer even after the To date passes) until both the hospital and this officer confirm the actual
+        discharge. Swapping the officer here revokes the previous officer's link and clears any confirmation they'd given.
+      </p>
+
+      <div className="flex flex-wrap gap-4 mt-3">
+        <button type="button" onClick={() => setShowHistory((v) => !v)} className="text-xs font-semibold text-violet">
+          {showHistory ? "Hide day-by-day history" : "Day-by-day history"}
+        </button>
+        {canForceClose && (
+          <button type="button" onClick={() => setShowForceClose((v) => !v)} className="text-xs font-semibold text-clay ml-auto">
+            {showForceClose ? "Cancel override" : "Force-close discharge"}
+          </button>
+        )}
+      </div>
+
+      {showHistory && (
+        <div className="mt-3 border-t border-ink/10 pt-3 space-y-1.5">
+          {c.assignments.length === 0 && <p className="text-xs text-ink/40">No daily rows — the standing officer covers every day.</p>}
+          {c.assignments.map((a) => (
+            <div key={a.id} className="text-sm flex flex-wrap gap-2 items-center">
+              <span className="font-semibold text-ink">{a.date}</span>
+              <span className="text-ink/70">{a.agent_name}</span>
+              <span className={`text-xs ${a.status === "no_show" ? "text-clay font-semibold" : "text-ink/40"}`}>{a.status}</span>
+              <span className="ml-auto flex gap-2">
+                <button type="button" disabled={busy} onClick={() => setDayStatus(a.id, "completed")} className="text-[11px] font-semibold text-violet disabled:opacity-50">
+                  Mark completed
+                </button>
+                <button type="button" disabled={busy} onClick={() => setDayStatus(a.id, "no_show")} className="text-[11px] font-semibold text-clay disabled:opacity-50">
+                  Mark no-show
+                </button>
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {showForceClose && (
+        <form onSubmit={forceClose} className="mt-3 border-t border-ink/10 pt-3 space-y-2">
+          <p className="text-xs text-ink/60">
+            Use this only when one side has stopped responding. It fills in the missing confirmation, closes the case
+            so billing stops, revokes the officer's link, and permanently records that this was an override.
+          </p>
+          <div className="flex flex-wrap gap-2 items-end">
+            <label className="block">
+              <span className="text-xs text-ink/50 block">Discharge date & time</span>
+              <input type="datetime-local" value={forceDatetime} onChange={(e) => setForceDatetime(e.target.value)} className="text-sm border border-ink/15 rounded-lg px-3 py-2" />
+            </label>
+            <input
+              required minLength={3} value={forceReason} onChange={(e) => setForceReason(e.target.value)}
+              placeholder="Reason (required) — e.g. RO left the job, unreachable 5 days"
+              className="flex-1 min-w-[220px] text-sm border border-ink/15 rounded-lg px-3 py-2"
+            />
+            <button disabled={busy} className="text-sm font-semibold px-4 py-2 rounded-full bg-clay text-white disabled:opacity-60">
+              {busy ? "Closing…" : "Force-close"}
+            </button>
+          </div>
+        </form>
+      )}
+
       {error && <p className="text-sm text-clay mt-2">{error}</p>}
     </div>
   );
+}
+
+function nowLocalInput() {
+  const d = new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 function HospitalsTab({ hospitals, onChanged }) {

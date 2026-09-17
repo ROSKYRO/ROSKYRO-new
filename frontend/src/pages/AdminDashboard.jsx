@@ -144,13 +144,17 @@ export default function AdminDashboard() {
     loadComplaints();
   }
 
-  // --- Partners: add / activate-deactivate / delete ---
+  // --- Partners: add / activate-deactivate / edit rates & availability / delete ---
   async function addPartner(payload) {
     await api.post("/admin/partners", payload);
     loadAgents();
   }
   async function setPartnerStatus(id, status) {
     await api.patch(`/admin/partners/${id}/status`, { status });
+    loadAgents();
+  }
+  async function updateAgentPartner(id, payload) {
+    await api.patch(`/admin/partners/${id}`, payload);
     loadAgents();
   }
   async function deletePartner(id) {
@@ -322,52 +326,14 @@ export default function AdminDashboard() {
         <div className="space-y-4">
           <AddPartnerForm onAdd={addPartner} />
           {agents.map((a) => (
-            <div key={a.id} className="border border-ink/10 rounded-card p-5">
-              <div className="flex justify-between items-center mb-3 gap-3 flex-wrap">
-                <div>
-                  <div className="font-semibold text-ink">{a.full_name}</div>
-                  <div className="text-sm text-ink/50">{a.phone} · {a.status} · {a.verification_progress}/6 checks</div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className={`text-xs font-semibold px-3 py-1 rounded-full ${a.is_fully_verified ? "bg-violet/15 text-magenta" : "bg-flare/20 text-ink"}`}>
-                    {a.is_fully_verified ? "Fully verified" : "In progress"}
-                  </span>
-                  {a.status === "suspended" ? (
-                    <button
-                      onClick={() => setPartnerStatus(a.id, "active")}
-                      className="text-xs font-semibold px-3 py-1.5 rounded-full bg-violet/15 text-magenta"
-                    >
-                      Activate
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => setPartnerStatus(a.id, "suspended")}
-                      className="text-xs font-semibold px-3 py-1.5 rounded-full bg-ink/10 text-ink/60"
-                    >
-                      Deactivate
-                    </button>
-                  )}
-                  <button
-                    onClick={() => deletePartner(a.id)}
-                    className="text-xs font-semibold px-3 py-1.5 rounded-full bg-clay/15 text-clay"
-                  >
-                    Delete
-                  </button>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {CHECK_FIELDS.map(([field, label]) => (
-                  <label key={field} className="flex items-center gap-2 text-sm text-ink/70 bg-parchment rounded-lg px-3 py-2 border border-ink/5">
-                    <input
-                      type="checkbox"
-                      checked={a[field] ?? false}
-                      onChange={(e) => toggleCheck(a.id, field, e.target.checked)}
-                    />
-                    {label}
-                  </label>
-                ))}
-              </div>
-            </div>
+            <PartnerCard
+              key={a.id}
+              a={a}
+              onToggleCheck={toggleCheck}
+              onSetStatus={setPartnerStatus}
+              onUpdate={updateAgentPartner}
+              onDelete={deletePartner}
+            />
           ))}
           {agents.length === 0 && <p className="text-ink/60">No partner applications yet.</p>}
         </div>
@@ -1067,6 +1033,134 @@ function TeamRow({ member, isSelf, onUpdate, onDelete }) {
 // ---------------------------------------------------------------------------
 // Partners: add form (used at top of the Partners tab)
 // ---------------------------------------------------------------------------
+
+function PartnerCard({ a, onToggleCheck, onSetStatus, onUpdate, onDelete }) {
+  const [editingRates, setEditingRates] = useState(false);
+  const [hourlyRate, setHourlyRate] = useState(a.hourly_rate ?? "");
+  const [monthlyBase, setMonthlyBase] = useState(a.monthly_base_pay ?? "");
+  const [hospitalDailyRate, setHospitalDailyRate] = useState(a.hospital_daily_rate ?? "");
+  const [saving, setSaving] = useState(false);
+
+  async function toggleAvailable() {
+    setSaving(true);
+    try {
+      await onUpdate(a.id, { is_available: !a.is_available });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function saveRates(e) {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      await onUpdate(a.id, {
+        hourly_rate: hourlyRate === "" ? null : Number(hourlyRate),
+        monthly_base_pay: monthlyBase === "" ? null : Number(monthlyBase),
+        hospital_daily_rate: hospitalDailyRate === "" ? null : Number(hospitalDailyRate),
+      });
+      setEditingRates(false);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="border border-ink/10 rounded-card p-5">
+      <div className="flex justify-between items-center mb-3 gap-3 flex-wrap">
+        <div>
+          <div className="font-semibold text-ink">{a.full_name}</div>
+          <div className="text-sm text-ink/50">{a.phone} · {a.status} · {a.verification_progress}/6 checks</div>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className={`text-xs font-semibold px-3 py-1 rounded-full ${a.is_fully_verified ? "bg-violet/15 text-magenta" : "bg-flare/20 text-ink"}`}>
+            {a.is_fully_verified ? "Fully verified" : "In progress"}
+          </span>
+          {/* A real toggle now — previously is_available only ever flipped to
+              false automatically on suspend, and nothing enforced it anyway.
+              The Hospital Program's assign flow now blocks (softly) on this. */}
+          <button
+            onClick={toggleAvailable}
+            disabled={saving}
+            className={`text-xs font-semibold px-3 py-1.5 rounded-full disabled:opacity-50 ${a.is_available ? "bg-violet/15 text-magenta" : "bg-clay/15 text-clay"}`}
+          >
+            {a.is_available ? "Available" : "Marked unavailable"}
+          </button>
+          {a.status === "suspended" ? (
+            <button
+              onClick={() => onSetStatus(a.id, "active")}
+              className="text-xs font-semibold px-3 py-1.5 rounded-full bg-violet/15 text-magenta"
+            >
+              Activate
+            </button>
+          ) : (
+            <button
+              onClick={() => onSetStatus(a.id, "suspended")}
+              className="text-xs font-semibold px-3 py-1.5 rounded-full bg-ink/10 text-ink/60"
+            >
+              Deactivate
+            </button>
+          )}
+          <button
+            onClick={() => onDelete(a.id)}
+            className="text-xs font-semibold px-3 py-1.5 rounded-full bg-clay/15 text-clay"
+          >
+            Delete
+          </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-3">
+        {CHECK_FIELDS.map(([field, label]) => (
+          <label key={field} className="flex items-center gap-2 text-sm text-ink/70 bg-parchment rounded-lg px-3 py-2 border border-ink/5">
+            <input
+              type="checkbox"
+              checked={a[field] ?? false}
+              onChange={(e) => onToggleCheck(a.id, field, e.target.checked)}
+            />
+            {label}
+          </label>
+        ))}
+      </div>
+
+      {!editingRates ? (
+        <div className="flex flex-wrap items-center gap-3 text-xs text-ink/50 pt-3 border-t border-ink/10">
+          <span>Hourly (bookings): {a.hourly_rate != null ? `₹${a.hourly_rate}` : "—"}</span>
+          <span>Monthly base: {a.monthly_base_pay != null ? `₹${a.monthly_base_pay}` : "—"}</span>
+          <span>Hospital day-rate: {a.hospital_daily_rate != null ? `₹${a.hospital_daily_rate}` : "not set — payout can't be estimated"}</span>
+          <button onClick={() => setEditingRates(true)} className="font-semibold text-violet hover:underline">
+            Edit rates
+          </button>
+        </div>
+      ) : (
+        <form onSubmit={saveRates} className="flex flex-wrap items-end gap-2 pt-3 border-t border-ink/10">
+          <label className="text-xs text-ink/50">
+            Hourly (₹)
+            <input type="number" value={hourlyRate} onChange={(e) => setHourlyRate(e.target.value)} className="block mt-1 text-sm border border-ink/15 rounded-lg px-2 py-1.5 w-24" />
+          </label>
+          <label className="text-xs text-ink/50">
+            Monthly base (₹)
+            <input type="number" value={monthlyBase} onChange={(e) => setMonthlyBase(e.target.value)} className="block mt-1 text-sm border border-ink/15 rounded-lg px-2 py-1.5 w-24" />
+          </label>
+          <label className="text-xs text-ink/50">
+            Hospital day-rate (₹)
+            <input type="number" value={hospitalDailyRate} onChange={(e) => setHospitalDailyRate(e.target.value)} className="block mt-1 text-sm border border-ink/15 rounded-lg px-2 py-1.5 w-28" placeholder="e.g. 400" />
+          </label>
+          <button disabled={saving} className="text-xs font-semibold px-3 py-2 rounded-full bg-violet text-white disabled:opacity-60">
+            {saving ? "Saving…" : "Save"}
+          </button>
+          <button type="button" onClick={() => setEditingRates(false)} className="text-xs font-semibold px-3 py-2 rounded-full bg-ink/10 text-ink/60">
+            Cancel
+          </button>
+          <p className="w-full text-[10px] text-ink/40">
+            Hospital day-rate is what ROSKYRO pays THIS officer per day of Hospital Concierge Program coverage —
+            separate from the hourly rate used for on-demand bookings.
+          </p>
+        </form>
+      )}
+    </div>
+  );
+}
 
 function AddPartnerForm({ onAdd }) {
   const [open, setOpen] = useState(false);

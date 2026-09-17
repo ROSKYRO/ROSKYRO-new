@@ -42,9 +42,17 @@ export default function HospitalDashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
 
-  async function dischargeCase(id) {
-    if (!window.confirm("Mark this patient as discharged? ROSKYRO billing for this case stops from today.")) return;
-    await api.patch(`/hospital-console/patients/${id}/status`, { status: "discharged" });
+  async function dischargeCase(id, datetimeLocal) {
+    await api.post(`/hospital-console/patients/${id}/discharge`, {
+      discharge_datetime: datetimeLocal ? new Date(datetimeLocal).toISOString() : null,
+    });
+    loadDashboard();
+    loadCases("active");
+  }
+
+  // Full withdrawal of a mis-clicked confirmation — not just editing the time.
+  async function undoDischarge(id) {
+    await api.delete(`/hospital-console/patients/${id}/discharge`);
     loadDashboard();
     loadCases("active");
   }
@@ -63,7 +71,8 @@ export default function HospitalDashboard() {
       </div>
       <p className="text-ink/60 mb-8">
         Your concierge service, managed by ROSKYRO — hand off a patient's short details and ROSKYRO takes care of
-        the rest, with one dedicated Relationship Officer assigned every day of their stay.
+        the rest, with one dedicated Relationship Officer assigned at admission. Coverage keeps running until you
+        and that officer both confirm the actual discharge date & time.
       </p>
 
       {dashboard && (
@@ -74,6 +83,15 @@ export default function HospitalDashboard() {
             label="Awaiting today's officer"
             value={dashboard.today_unassigned}
             highlight={dashboard.today_unassigned > 0}
+          />
+          <Stat
+            label="Discharges awaiting you"
+            value={dashboard.pending_on_hospital}
+            highlight={dashboard.pending_on_hospital > 0}
+          />
+          <Stat
+            label="Awaiting the officer"
+            value={dashboard.pending_on_officer}
           />
           <Stat label="Discharged this month" value={dashboard.discharged_this_month} />
           <Stat label="Est. billing this month" value={`₹${dashboard.estimated_billing_this_month.toLocaleString("en-IN")}`} />
@@ -111,7 +129,8 @@ export default function HospitalDashboard() {
               c={c}
               expanded={expandedId === c.id}
               onToggle={() => setExpandedId(expandedId === c.id ? null : c.id)}
-              onDischarge={tab === "active" ? () => dischargeCase(c.id) : null}
+              onDischarge={tab === "active" ? (dt) => dischargeCase(c.id, dt) : null}
+              onUndoDischarge={tab === "active" ? () => undoDischarge(c.id) : null}
             />
           ))}
         </div>
@@ -120,7 +139,51 @@ export default function HospitalDashboard() {
   );
 }
 
-function PatientCard({ c, expanded, onToggle, onDischarge }) {
+function PatientCard({ c, expanded, onToggle, onDischarge, onUndoDischarge }) {
+  const [showDischargeForm, setShowDischargeForm] = useState(false);
+  const [datetime, setDatetime] = useState(() => {
+    const d = new Date();
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  async function submitDischarge(e) {
+    e.preventDefault();
+    setSubmitting(true);
+    setError("");
+    try {
+      await onDischarge(datetime);
+      setShowDischargeForm(false);
+    } catch (err) {
+      // The server now validates the date/time (not before admission, not in
+      // the future, not wildly apart from the officer's own confirmation) —
+      // show that message instead of silently swallowing it.
+      setError(err.response?.data?.detail || "Could not confirm this discharge.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function undo() {
+    setSubmitting(true);
+    setError("");
+    try {
+      await onUndoDischarge();
+      setShowDischargeForm(false);
+    } catch (err) {
+      setError(err.response?.data?.detail || "Could not undo this confirmation.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  const isPendingDischarge = c.status === "pending_discharge";
+  const waitingOn = isPendingDischarge
+    ? (c.discharge_waiting_on === "officer" ? "the Relationship Officer" : "you")
+    : null;
+
   return (
     <div className="border border-ink/10 rounded-card p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -134,6 +197,9 @@ function PatientCard({ c, expanded, onToggle, onDischarge }) {
             Attendant: {c.attendant_name || "—"} · {c.attendant_phone}
           </div>
           <div className="text-sm text-ink/50">Admitted {c.admission_date}</div>
+          {c.assigned_agent_name && (
+            <div className="text-sm text-ink/50">Relationship Officer: {c.assigned_agent_name}</div>
+          )}
           {c.short_note && <div className="text-sm text-ink/60 mt-1">{c.short_note}</div>}
         </div>
         <div className="text-right">
@@ -143,28 +209,92 @@ function PatientCard({ c, expanded, onToggle, onDischarge }) {
           <div className="text-xs text-ink/40 mt-1">
             {c.days_covered} day{c.days_covered === 1 ? "" : "s"} covered · ₹{c.billed_estimate.toLocaleString("en-IN")} billed
           </div>
+          {isPendingDischarge && (
+            <div className="text-xs font-semibold text-amber-600 mt-1">
+              Waiting on {waitingOn} to confirm discharge
+            </div>
+          )}
         </div>
       </div>
 
-      <div className="flex gap-3 mt-3">
+      {c.alerts?.length > 0 && (
+        <div className="space-y-1.5 mt-3">
+          {c.alerts.map((a) => (
+            <div
+              key={a.code}
+              className={`text-xs px-3 py-2 rounded-lg border font-medium ${
+                a.severity === "critical"
+                  ? "bg-rose-50 border-rose-200 text-rose-700"
+                  : a.severity === "warning"
+                  ? "bg-amber-50 border-amber-200 text-amber-700"
+                  : "bg-slate-50 border-ink/10 text-ink/60"
+              }`}
+            >
+              {a.message}
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="flex gap-3 mt-3 flex-wrap">
         <button onClick={onToggle} className="text-xs font-semibold text-violet">
           {expanded ? "Hide assignment history" : "View assignment history"}
         </button>
-        {onDischarge && (
-          <button onClick={onDischarge} className="text-xs font-semibold text-clay ml-auto">
-            Mark discharged
+        {onUndoDischarge && c.hospital_discharge_at && (
+          <button onClick={undo} disabled={submitting} className="text-xs font-semibold text-ink/50 disabled:opacity-50">
+            Undo my confirmation
+          </button>
+        )}
+        {onDischarge && !showDischargeForm && (
+          <button onClick={() => setShowDischargeForm(true)} className="text-xs font-semibold text-clay ml-auto">
+            {isPendingDischarge ? "Update discharge time" : "Mark discharged"}
           </button>
         )}
       </div>
 
+      {error && <p className="text-xs text-clay mt-2">{error}</p>}
+
+      {onDischarge && showDischargeForm && (
+        <form onSubmit={submitDischarge} className="mt-3 border-t border-ink/10 pt-3 flex flex-wrap items-end gap-2">
+          <label className="block">
+            <span className="text-xs text-ink/50 block">Discharge date & time</span>
+            <input
+              type="datetime-local"
+              required
+              value={datetime}
+              onChange={(e) => setDatetime(e.target.value)}
+              className="text-sm border border-ink/15 rounded-lg px-3 py-2"
+            />
+          </label>
+          <button disabled={submitting} className="text-sm font-semibold px-4 py-2 rounded-full bg-clay text-white disabled:opacity-60">
+            {submitting ? "Confirming…" : "Confirm discharge"}
+          </button>
+          <button type="button" onClick={() => setShowDischargeForm(false)} className="text-xs font-semibold text-ink/50">
+            Cancel
+          </button>
+          <p className="w-full text-[11px] text-ink/40">
+            {c.officer_confirmation_required
+              ? "The assigned Relationship Officer also confirms their own discharge date & time — the case only closes and billing stops once both confirmations are in."
+              : "No Relationship Officer is assigned to this patient, so your confirmation alone closes this case and stops billing."}
+            {" "}Clicked it by mistake? You can undo your confirmation until the case closes.
+          </p>
+        </form>
+      )}
+
       {expanded && (
         <div className="mt-3 border-t border-ink/10 pt-3 space-y-1.5">
-          {c.assignments.length === 0 && <p className="text-xs text-ink/40">No officer assigned yet.</p>}
+          {c.assignments.length === 0 && (
+            <p className="text-xs text-ink/40">
+              {c.assigned_agent_name
+                ? `${c.assigned_agent_name} covers this patient every day — no day-by-day rows logged.`
+                : "No officer assigned yet."}
+            </p>
+          )}
           {c.assignments.map((a) => (
             <div key={a.id} className="text-sm flex flex-wrap gap-2 items-baseline">
               <span className="font-semibold text-ink">{a.date}</span>
               <span className="text-ink/70">{a.agent_name}</span>
-              <span className="text-xs text-ink/40">{STATUS_LABEL[a.status] || a.status}</span>
+              <span className={`text-xs ${a.status === "no_show" ? "text-clay font-semibold" : "text-ink/40"}`}>{STATUS_LABEL[a.status] || a.status}</span>
               {a.note && <span className="text-xs text-ink/40 ml-auto">{a.note}</span>}
             </div>
           ))}
