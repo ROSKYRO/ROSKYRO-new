@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 
 from app.db.session import get_db
@@ -12,12 +12,11 @@ from app.core.limiter import limiter
 from app.core.config import settings
 from app.models.user import User, UserRole
 from app.models.hospital import Hospital
-from app.models.booking import Booking, BookingStatus
-from app.models.journey import JourneyUpdate, JourneyStage, JOURNEY_STAGE_ORDER
-from app.models.review import Review
+from app.models.patient_case import PatientCase, PatientCaseStatus, DailyOfficerAssignment
 from app.schemas.auth import LoginIn, TokenOut
 from app.schemas.hospital import (
-    PublicHospitalOut, JourneyUpdateIn, JourneyUpdateOut, JourneyOut, HospitalDashboardOut,
+    PublicHospitalOut, PatientCaseCreateIn, PatientCaseStatusIn, PatientCaseOut,
+    DailyAssignmentOut, HospitalDashboardOut,
 )
 
 # Public router: hospital picker shown to families during booking.
@@ -64,170 +63,162 @@ def hospital_login(request: Request, payload: LoginIn, db: Session = Depends(get
     return TokenOut(access_token=token, role=user.role.value, user_id=user.id, full_name=user.full_name)
 
 
-def _to_journey_out(b: Booking) -> JourneyOut:
-    return JourneyOut(
-        id=b.id,
-        booking_code=b.booking_code,
-        customer_name=b.customer.full_name if b.customer else "—",
-        customer_phone=b.customer.phone if b.customer else "—",
-        service_name=b.service.name if b.service else "—",
-        hospital_name=b.hospital.name if b.hospital else None,
-        status=b.status.value,
-        current_stage=b.current_stage,
-        scheduled_start=b.scheduled_start,
-        agent_name=b.agent.full_name if b.agent else None,
-        updates=[
-            JourneyUpdateOut(
-                id=u.id, stage=u.stage, note=u.note,
-                posted_by_name=u.posted_by.full_name if u.posted_by else None,
-                created_at=u.created_at,
+def _to_case_out(c: PatientCase) -> PatientCaseOut:
+    today = datetime.utcnow().date()
+    today_assignment = next((a for a in c.assignments if a.date == today), None)
+    days_covered = len(c.assignments)
+    return PatientCaseOut(
+        id=c.id,
+        hospital_id=c.hospital_id,
+        hospital_name=c.hospital.name if c.hospital else None,
+        patient_name=c.patient_name,
+        patient_age=c.patient_age,
+        attendant_name=c.attendant_name,
+        attendant_phone=c.attendant_phone,
+        ward_or_room=c.ward_or_room,
+        short_note=c.short_note,
+        admission_date=c.admission_date,
+        expected_discharge_date=c.expected_discharge_date,
+        status=c.status,
+        daily_rate=c.daily_rate,
+        days_covered=days_covered,
+        billed_estimate=round(days_covered * c.daily_rate, 2),
+        today_officer_name=today_assignment.agent.full_name if today_assignment and today_assignment.agent else None,
+        created_at=c.created_at,
+        discharged_at=c.discharged_at,
+        assignments=[
+            DailyAssignmentOut(
+                id=a.id, date=a.date, agent_id=a.agent_id,
+                agent_name=a.agent.full_name if a.agent else "—",
+                agent_phone=a.agent.phone if a.agent else None,
+                status=a.status, note=a.note,
             )
-            for u in b.journey_updates
+            for a in c.assignments
         ],
     )
 
 
-def _hospital_bookings_query(db: Session, hospital_id: int):
-    return db.query(Booking).filter(Booking.hospital_id == hospital_id)
-
-
-ACTIVE_STATUSES = [
-    BookingStatus.requested, BookingStatus.assigned, BookingStatus.en_route,
-    BookingStatus.awaiting_start_pin, BookingStatus.in_progress, BookingStatus.awaiting_end_pin,
-]
+def _hospital_cases_query(db: Session, hospital_id: int):
+    return (
+        db.query(PatientCase)
+        .options(joinedload(PatientCase.assignments).joinedload(DailyOfficerAssignment.agent), joinedload(PatientCase.hospital))
+        .filter(PatientCase.hospital_id == hospital_id)
+    )
 
 
 @router.get("/dashboard", response_model=HospitalDashboardOut)
 def dashboard(db: Session = Depends(get_db), staff: User = Depends(require_hospital_staff)):
     hospital = db.query(Hospital).get(staff.hospital_id)
-    base = _hospital_bookings_query(db, staff.hospital_id)
-    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    today = datetime.utcnow().date()
+    month_start = datetime.utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
-    todays_patients = base.filter(Booking.scheduled_start >= today_start).count()
-    active_journeys = base.filter(Booking.status.in_(ACTIVE_STATUSES)).count()
-    admission_queue = base.filter(Booking.current_stage == JourneyStage.admission).count()
-    discharge_queue = base.filter(Booking.current_stage == JourneyStage.discharge).count()
+    active_cases = _hospital_cases_query(db, staff.hospital_id).filter(PatientCase.status == PatientCaseStatus.active).all()
+    active_patients = len(active_cases)
+    today_assigned = sum(1 for c in active_cases if any(a.date == today for a in c.assignments))
+    today_unassigned = active_patients - today_assigned
 
-    family_updates_today = (
-        db.query(func.count(JourneyUpdate.id))
-        .join(Booking, Booking.id == JourneyUpdate.booking_id)
-        .filter(Booking.hospital_id == staff.hospital_id, JourneyUpdate.created_at >= today_start)
-        .scalar()
+    discharged_this_month = (
+        _hospital_cases_query(db, staff.hospital_id)
+        .filter(PatientCase.status == PatientCaseStatus.discharged, PatientCase.discharged_at >= month_start)
+        .count()
     )
 
-    review_stats = (
-        db.query(func.avg(Review.rating), func.count(Review.id))
-        .join(Booking, Booking.id == Review.booking_id)
-        .filter(Booking.hospital_id == staff.hospital_id)
-        .first()
+    # Rough running estimate: every assignment logged this month, at that case's daily_rate.
+    estimate = (
+        db.query(func.count(DailyOfficerAssignment.id), PatientCase.daily_rate)
+        .join(PatientCase, PatientCase.id == DailyOfficerAssignment.patient_case_id)
+        .filter(PatientCase.hospital_id == staff.hospital_id, DailyOfficerAssignment.date >= month_start.date())
+        .group_by(PatientCase.daily_rate)
+        .all()
     )
-    avg_rating, feedback_count = review_stats if review_stats else (None, 0)
+    estimated_billing_this_month = sum(count * rate for count, rate in estimate)
 
     return HospitalDashboardOut(
         hospital_name=hospital.name if hospital else "—",
-        todays_patients=todays_patients,
-        active_journeys=active_journeys,
-        admission_queue=admission_queue,
-        discharge_queue=discharge_queue,
-        family_updates_today=family_updates_today or 0,
-        feedback_avg_rating=round(avg_rating, 2) if avg_rating else None,
-        feedback_count=feedback_count or 0,
+        active_patients=active_patients,
+        today_assigned=today_assigned,
+        today_unassigned=today_unassigned,
+        discharged_this_month=discharged_this_month,
+        estimated_billing_this_month=round(estimated_billing_this_month, 2),
     )
 
 
-@router.get("/journeys", response_model=List[JourneyOut])
-def list_journeys(
-    queue: Optional[str] = None,  # today | active | admission | discharge | all
+@router.post("/patients", response_model=PatientCaseOut)
+def create_patient_case(
+    payload: PatientCaseCreateIn,
     db: Session = Depends(get_db),
     staff: User = Depends(require_hospital_staff),
 ):
-    """Powers Today's Patients / Active Journeys / Admission Queue / Discharge Queue tabs."""
-    query = _hospital_bookings_query(db, staff.hospital_id).order_by(Booking.scheduled_start.desc())
+    """Hospital hands a patient/attendant over to ROSKYRO — short details
+    only. ROSKYRO assigns a dedicated Relationship Officer from here."""
+    hospital = db.query(Hospital).get(staff.hospital_id)
+    if not hospital:
+        raise HTTPException(status_code=404, detail="Hospital not found")
+    if hospital.per_patient_daily_rate is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Your hospital's per-patient daily billing rate hasn't been set up yet — ask ROSKYRO to configure it before opening cases.",
+        )
 
-    if queue == "today":
-        today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
-        query = query.filter(Booking.scheduled_start >= today_start)
-    elif queue == "active":
-        query = query.filter(Booking.status.in_(ACTIVE_STATUSES))
-    elif queue == "admission":
-        query = query.filter(Booking.current_stage == JourneyStage.admission)
-    elif queue == "discharge":
-        query = query.filter(Booking.current_stage == JourneyStage.discharge)
-
-    bookings = query.limit(300).all()
-    return [_to_journey_out(b) for b in bookings]
-
-
-@router.get("/journeys/{booking_id}", response_model=JourneyOut)
-def get_journey(booking_id: int, db: Session = Depends(get_db), staff: User = Depends(require_hospital_staff)):
-    booking = db.query(Booking).filter(Booking.id == booking_id, Booking.hospital_id == staff.hospital_id).first()
-    if not booking:
-        raise HTTPException(status_code=404, detail="Journey not found")
-    return _to_journey_out(booking)
-
-
-@router.post("/journeys/{booking_id}/stage", response_model=JourneyOut)
-def post_stage_update(
-    booking_id: int,
-    payload: JourneyUpdateIn,
-    db: Session = Depends(get_db),
-    staff: User = Depends(require_hospital_staff),
-):
-    """Hospital Console posts a journey-stage update — this is the 'Family Update'
-    the family sees live on their WhatsApp / Dashboard timeline."""
-    booking = db.query(Booking).filter(Booking.id == booking_id, Booking.hospital_id == staff.hospital_id).first()
-    if not booking:
-        raise HTTPException(status_code=404, detail="Journey not found")
-
-    update = JourneyUpdate(booking_id=booking.id, stage=payload.stage, note=payload.note, posted_by_id=staff.id)
-    db.add(update)
-    booking.current_stage = payload.stage
+    case = PatientCase(
+        hospital_id=hospital.id,
+        created_by_id=staff.id,
+        patient_name=payload.patient_name,
+        patient_age=payload.patient_age,
+        attendant_name=payload.attendant_name,
+        attendant_phone=payload.attendant_phone,
+        ward_or_room=payload.ward_or_room,
+        short_note=payload.short_note,
+        admission_date=payload.admission_date or datetime.utcnow().date(),
+        expected_discharge_date=payload.expected_discharge_date,
+        daily_rate=hospital.per_patient_daily_rate,
+    )
+    db.add(case)
     db.commit()
-    db.refresh(booking)
-    return _to_journey_out(booking)
+    db.refresh(case)
+    return _to_case_out(case)
 
 
-@router.get("/feedback")
-def hospital_feedback(db: Session = Depends(get_db), staff: User = Depends(require_hospital_staff)):
-    """Patient Feedback tab — reviews left for journeys at this hospital."""
-    reviews = (
-        db.query(Review)
-        .join(Booking, Booking.id == Review.booking_id)
-        .filter(Booking.hospital_id == staff.hospital_id)
-        .order_by(Review.created_at.desc())
-        .limit(200)
-        .all()
-    )
-    return [
-        {
-            "id": r.id,
-            "booking_code": r.booking.booking_code if r.booking else None,
-            "rating": r.rating,
-            "comment": r.comment,
-            "created_at": r.created_at,
-        }
-        for r in reviews
-    ]
+@router.get("/patients", response_model=List[PatientCaseOut])
+def list_patient_cases(
+    status: Optional[str] = None,  # active | discharged | cancelled | all
+    db: Session = Depends(get_db),
+    staff: User = Depends(require_hospital_staff),
+):
+    query = _hospital_cases_query(db, staff.hospital_id).order_by(PatientCase.created_at.desc())
+    if status and status != "all":
+        try:
+            query = query.filter(PatientCase.status == PatientCaseStatus(status))
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid status filter")
+    cases = query.limit(300).all()
+    return [_to_case_out(c) for c in cases]
 
 
-@router.get("/reports")
-def hospital_reports(db: Session = Depends(get_db), staff: User = Depends(require_hospital_staff)):
-    """Reports tab — simple rollups a hospital admin actually needs at a glance."""
-    base = _hospital_bookings_query(db, staff.hospital_id)
-    total_journeys = base.count()
-    completed = base.filter(Booking.status == BookingStatus.completed).count()
-    cancelled = base.filter(Booking.status == BookingStatus.cancelled).count()
-    sos_count = base.filter(Booking.sos_triggered == True).count()  # noqa: E712
+@router.get("/patients/{case_id}", response_model=PatientCaseOut)
+def get_patient_case(case_id: int, db: Session = Depends(get_db), staff: User = Depends(require_hospital_staff)):
+    case = _hospital_cases_query(db, staff.hospital_id).filter(PatientCase.id == case_id).first()
+    if not case:
+        raise HTTPException(status_code=404, detail="Patient case not found")
+    return _to_case_out(case)
 
-    by_stage = {
-        stage.value: base.filter(Booking.current_stage == stage).count()
-        for stage in JOURNEY_STAGE_ORDER
-    }
 
-    return {
-        "total_journeys": total_journeys,
-        "completed": completed,
-        "cancelled": cancelled,
-        "sos_count": sos_count,
-        "by_stage": by_stage,
-    }
+@router.patch("/patients/{case_id}/status", response_model=PatientCaseOut)
+def update_patient_case_status(
+    case_id: int,
+    payload: PatientCaseStatusIn,
+    db: Session = Depends(get_db),
+    staff: User = Depends(require_hospital_staff),
+):
+    """Hospital marks a case discharged (billing stops) or cancels it. Only
+    the hospital that opened the case can change its status."""
+    case = db.query(PatientCase).filter(PatientCase.id == case_id, PatientCase.hospital_id == staff.hospital_id).first()
+    if not case:
+        raise HTTPException(status_code=404, detail="Patient case not found")
+
+    case.status = payload.status
+    if payload.status == PatientCaseStatus.discharged:
+        case.discharged_at = datetime.utcnow()
+    db.commit()
+    db.refresh(case)
+    return _to_case_out(case)

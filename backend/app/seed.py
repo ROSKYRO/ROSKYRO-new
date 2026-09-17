@@ -12,10 +12,14 @@ Dashboard). Only City/Admin stay "first boot only" (empty-table checks).
 
 Usage:  python -m app.seed
 """
+from datetime import date
+
 from app.db.session import SessionLocal, engine, Base
 from app.models.service import Service
 from app.models.city import City
 from app.models.user import User, UserRole
+from app.models.hospital import Hospital, HospitalContractStatus
+from app.models.patient_case import PatientCase
 from app.core.security import hash_password
 from app.core.config import settings
 
@@ -105,6 +109,41 @@ def run():
                 hashed_password=hash_password("admin123"),  # CHANGE IMMEDIATELY in production
                 role=UserRole.admin,
             ))
+
+        # First-boot only: a demo partner hospital + Hospital Console login,
+        # so the Hospital Concierge Program is visible/usable immediately
+        # after deploy instead of an empty console. Safe to edit/delete from
+        # the Admin dashboard once real hospitals are onboarded.
+        if not db.query(Hospital).first():
+            india_city = db.query(City).filter(City.is_live == True).first()  # noqa: E712
+            demo_hospital = Hospital(
+                name="Ambikapur Multispeciality Hospital (Demo)",
+                city_id=india_city.id if india_city else None,
+                contact_name="Front Desk",
+                contact_phone="9999999998",
+                contract_status=HospitalContractStatus.active,
+                per_patient_daily_rate=499.0,
+                notes="Demo hospital seeded on first boot — edit or deactivate from Admin > Hospitals.",
+            )
+            db.add(demo_hospital)
+            db.flush()  # get demo_hospital.id before using it below
+
+            db.add(User(
+                full_name="Demo Hospital Desk",
+                phone="9999999997",
+                hashed_password=hash_password("hospital123"),  # CHANGE before going live
+                role=UserRole.hospital_staff,
+                hospital_id=demo_hospital.id,
+            ))
+            db.add(PatientCase(
+                hospital_id=demo_hospital.id,
+                patient_name="Demo Patient",
+                attendant_phone="9999999996",
+                short_note="Sample case — assign a Relationship Officer from Admin > Hospitals to see it flow through.",
+                admission_date=date.today(),
+                daily_rate=demo_hospital.per_patient_daily_rate,
+            ))
+            print("Seed: demo hospital + Hospital Console login created (phone 9999999997 / hospital123).")
 
         db.commit()
         print("Seed complete. Admin login -> phone: 9999999999 / password: admin123 (change this!)")

@@ -16,9 +16,13 @@ class HospitalContractStatus(str, enum.Enum):
 
 class Hospital(Base):
     """
-    A partner hospital using ROSKYRO Hospital Console (Concierge-as-a-Service +
-    Technology). Families pick a hospital when booking ROSKYRO Relationship Officer; hospital
-    staff log into their own console scoped to this record only.
+    A partner hospital in the ROSKYRO Hospital Concierge Program. Hospital staff
+    log into their own Hospital Console (scoped to this record only) and submit
+    short patient details; ROSKYRO assigns a dedicated Relationship Officer for
+    each day of the patient's stay (see models/patient_case.py). The hospital
+    bills the patient/family its own concierge fee and pays ROSKYRO the fixed
+    per_patient_daily_rate set here — the hospital can present the whole thing
+    to families as "our concierge service, managed by ROSKYRO".
     """
     __tablename__ = "hospitals"
 
@@ -32,7 +36,13 @@ class Hospital(Base):
     contact_email = Column(String, nullable=True)
 
     contract_status = Column(Enum(HospitalContractStatus), default=HospitalContractStatus.prospect, nullable=False)
-    monthly_contract_amount = Column(Float, nullable=True)  # ₹25K–₹75K+/month tier, per FINAL REVENUE ARCHITECTURE
+    monthly_contract_amount = Column(Float, nullable=True)  # optional flat retainer, if the contract has one
+
+    # The core of the concierge-program billing model: a fixed amount this
+    # hospital pays ROSKYRO for every patient, for every day a dedicated
+    # Relationship Officer is assigned to them. Snapshotted onto each
+    # PatientCase at intake so a later rate change never rewrites history.
+    per_patient_daily_rate = Column(Float, nullable=True)
 
     is_active = Column(Boolean, default=True)  # quick on/off switch, independent of contract_status
     logo_url = Column(String, nullable=True)
@@ -42,4 +52,4 @@ class Hospital(Base):
 
     city = relationship("City")
     staff = relationship("User", back_populates="hospital")
-    bookings = relationship("Booking", back_populates="hospital")
+    patients = relationship("PatientCase", back_populates="hospital", cascade="all, delete-orphan")

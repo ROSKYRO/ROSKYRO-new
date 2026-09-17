@@ -1,10 +1,10 @@
-from datetime import datetime
+from datetime import datetime, date
 from typing import Optional, List
 
 from pydantic import BaseModel, Field
 
 from app.models.hospital import HospitalContractStatus
-from app.models.journey import JourneyStage
+from app.models.patient_case import PatientCaseStatus, DailyAssignmentStatus
 
 
 # ---------------------------------------------------------------------------
@@ -22,6 +22,7 @@ class HospitalOut(BaseModel):
     contact_email: Optional[str] = None
     contract_status: HospitalContractStatus
     monthly_contract_amount: Optional[float] = None
+    per_patient_daily_rate: Optional[float] = None
     is_active: bool
     logo_url: Optional[str] = None
     created_at: datetime
@@ -51,6 +52,7 @@ class HospitalCreateIn(BaseModel):
     contact_email: Optional[str] = None
     contract_status: HospitalContractStatus = HospitalContractStatus.prospect
     monthly_contract_amount: Optional[float] = None
+    per_patient_daily_rate: Optional[float] = None
     notes: Optional[str] = None
 
 
@@ -63,6 +65,7 @@ class HospitalUpdateIn(BaseModel):
     contact_email: Optional[str] = None
     contract_status: Optional[HospitalContractStatus] = None
     monthly_contract_amount: Optional[float] = None
+    per_patient_daily_rate: Optional[float] = None
     is_active: Optional[bool] = None
     notes: Optional[str] = None
 
@@ -88,39 +91,71 @@ class HospitalStaffOut(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Journey Engine — stage updates & timeline ("Family Updates")
+# Patient Cases — the hospital hands off short patient details, ROSKYRO
+# takes it from there with one dedicated Relationship Officer per day.
 # ---------------------------------------------------------------------------
 
-class JourneyUpdateIn(BaseModel):
-    stage: JourneyStage
-    note: Optional[str] = None
+class PatientCaseCreateIn(BaseModel):
+    """What a hospital fills in to hand a patient/attendant over to ROSKYRO
+    — deliberately short. No journey/stage tracking; ROSKYRO's Relationship
+    Officer takes it from here."""
+    patient_name: str
+    patient_age: Optional[int] = None
+    attendant_name: Optional[str] = None
+    attendant_phone: str = Field(..., min_length=10, max_length=15)
+    ward_or_room: Optional[str] = None
+    short_note: Optional[str] = None
+    admission_date: Optional[date] = None  # defaults to today
+    expected_discharge_date: Optional[date] = None
 
 
-class JourneyUpdateOut(BaseModel):
+class PatientCaseStatusIn(BaseModel):
+    status: PatientCaseStatus
+
+
+class DailyAssignmentOut(BaseModel):
     id: int
-    stage: JourneyStage
+    date: date
+    agent_id: int
+    agent_name: str
+    agent_phone: Optional[str] = None
+    status: DailyAssignmentStatus
     note: Optional[str] = None
-    posted_by_name: Optional[str] = None
-    created_at: datetime
 
     class Config:
         from_attributes = True
 
 
-class JourneyOut(BaseModel):
-    """A booking as a patient journey — used by the family timeline and the
-    Hospital Console's Active Journeys view."""
+class PatientCaseOut(BaseModel):
     id: int
-    booking_code: str
-    customer_name: str
-    customer_phone: str
-    service_name: str
+    hospital_id: int
     hospital_name: Optional[str] = None
-    status: str
-    current_stage: Optional[JourneyStage] = None
-    scheduled_start: datetime
-    agent_name: Optional[str] = None
-    updates: List[JourneyUpdateOut] = []
+    patient_name: str
+    patient_age: Optional[int] = None
+    attendant_name: Optional[str] = None
+    attendant_phone: str
+    ward_or_room: Optional[str] = None
+    short_note: Optional[str] = None
+    admission_date: date
+    expected_discharge_date: Optional[date] = None
+    status: PatientCaseStatus
+    daily_rate: float
+    days_covered: int = 0          # count of assignment days (completed + assigned)
+    billed_estimate: float = 0.0   # days_covered * daily_rate
+    today_officer_name: Optional[str] = None  # who's covering this patient today, if assigned
+    created_at: datetime
+    discharged_at: Optional[datetime] = None
+    assignments: List[DailyAssignmentOut] = []
+
+
+# What ROSKYRO Admin uses to (re-)assign one dedicated officer, optionally
+# across a whole date range at once — this is the "easy to assign" bit: one
+# call covers the officer for the patient's full expected stay if needed.
+class AssignOfficerIn(BaseModel):
+    agent_id: int
+    start_date: Optional[date] = None  # defaults to today
+    end_date: Optional[date] = None    # defaults to start_date (single day)
+    note: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------
@@ -129,10 +164,8 @@ class JourneyOut(BaseModel):
 
 class HospitalDashboardOut(BaseModel):
     hospital_name: str
-    todays_patients: int
-    active_journeys: int
-    admission_queue: int
-    discharge_queue: int
-    family_updates_today: int
-    feedback_avg_rating: Optional[float] = None
-    feedback_count: int
+    active_patients: int
+    today_assigned: int      # active patients with a Relationship Officer confirmed for today
+    today_unassigned: int    # active patients still waiting on today's assignment
+    discharged_this_month: int
+    estimated_billing_this_month: float
