@@ -6,6 +6,7 @@ const TABS = [
   ["board", "Ops Board — Assign Officers"],
   ["officers", "Officers"],
   ["attention", "Needs Attention"],
+  ["billing", "Billing"],
   ["hospitals", "Hospitals"],
 ];
 
@@ -100,6 +101,8 @@ export default function AdminHospitalProgram() {
       {tab === "officers" && (
         <OfficersTab officers={officers} loading={loading} onChanged={loadOfficers} />
       )}
+
+      {tab === "billing" && <BillingTab hospitals={hospitals} />}
 
       {tab === "hospitals" && (
         <HospitalsTab hospitals={hospitals} onChanged={loadHospitals} />
@@ -666,6 +669,226 @@ function StaffPanel({ hospitalId }) {
           {saving ? "Creating…" : "Issue login"}
         </button>
       </form>
+      {error && <p className="text-sm text-clay mt-2">{error}</p>}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Billing — monthly hospital invoices. Only patients who have ACTUALLY
+// discharged are ever counted here. A patient still active or
+// pending_discharge keeps billing quietly in the background and is simply
+// left off every invoice until the day they discharge — then they land on
+// whichever invoice gets generated after that, this month's or a later one.
+// ---------------------------------------------------------------------------
+
+function BillingTab({ hospitals }) {
+  const [invoices, setInvoices] = useState([]);
+  const [loadingInvoices, setLoadingInvoices] = useState(false);
+  const [pending, setPending] = useState({}); // hospitalId -> { case_count, total_amount } | null
+
+  async function loadInvoices() {
+    setLoadingInvoices(true);
+    try {
+      const { data } = await api.get("/admin/hospital-program/invoices");
+      setInvoices(data);
+    } finally {
+      setLoadingInvoices(false);
+    }
+  }
+
+  async function loadPending() {
+    const results = {};
+    await Promise.all(
+      hospitals.map(async (h) => {
+        try {
+          const { data } = await api.get(`/admin/hospital-program/hospitals/${h.id}/pending-billing`);
+          results[h.id] = data;
+        } catch {
+          results[h.id] = null;
+        }
+      })
+    );
+    setPending(results);
+  }
+
+  useEffect(() => { loadInvoices(); }, []);
+  useEffect(() => { if (hospitals.length) loadPending(); }, [hospitals]); // eslint-disable-line
+
+  return (
+    <div>
+      <h2 className="font-display text-lg text-ink mb-2">Ready to invoice</h2>
+      <p className="text-sm text-ink/60 mb-5">
+        Only patients who have actually discharged are counted below. A patient still active or pending discharge
+        keeps billing quietly in the background — it shows up here, and on the next invoice, the moment they
+        discharge, whichever month that turns out to be. Nothing is ever double-billed.
+      </p>
+      <div className="space-y-3 mb-10">
+        {hospitals.length === 0 && <p className="text-ink/60">No hospitals yet.</p>}
+        {hospitals.map((h) => {
+          const p = pending[h.id];
+          return (
+            <div key={h.id} className="border border-ink/10 rounded-card p-4 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div className="font-semibold text-ink">{h.name}</div>
+                <div className="text-sm text-ink/50">
+                  {p
+                    ? `${p.case_count} discharged patient${p.case_count === 1 ? "" : "s"} not yet invoiced · ₹${p.total_amount.toLocaleString("en-IN")}`
+                    : "Loading…"}
+                </div>
+              </div>
+              <GenerateInvoiceButton
+                hospitalId={h.id}
+                disabled={!p || p.case_count === 0}
+                onGenerated={() => { loadInvoices(); loadPending(); }}
+              />
+            </div>
+          );
+        })}
+      </div>
+
+      <h2 className="font-display text-lg text-ink mb-3">Invoices</h2>
+      {loadingInvoices && <p className="text-ink/50 mb-4">Loading…</p>}
+      {!loadingInvoices && invoices.length === 0 && <p className="text-ink/60">No invoices generated yet.</p>}
+      <div className="space-y-4">
+        {invoices.map((inv) => (
+          <InvoiceCard key={inv.id} inv={inv} onChanged={loadInvoices} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function GenerateInvoiceButton({ hospitalId, disabled, onGenerated }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  async function generate() {
+    setBusy(true);
+    setError("");
+    try {
+      await api.post(`/admin/hospital-program/hospitals/${hospitalId}/invoices`, {});
+      onGenerated();
+    } catch (err) {
+      setError(err.response?.data?.detail || "Could not generate invoice.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="text-right">
+      <button
+        onClick={generate}
+        disabled={disabled || busy}
+        className="text-sm font-semibold px-4 py-2 rounded-full bg-violet text-white disabled:opacity-40"
+      >
+        {busy ? "Generating…" : "Generate invoice"}
+      </button>
+      {error && <p className="text-xs text-clay mt-1 max-w-[220px]">{error}</p>}
+    </div>
+  );
+}
+
+function InvoiceCard({ inv, onChanged }) {
+  const [showCases, setShowCases] = useState(false);
+  const [showPay, setShowPay] = useState(false);
+  const [reference, setReference] = useState("");
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  async function markPaid(e) {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      await api.post(`/admin/hospital-program/invoices/${inv.id}/mark-paid`, {
+        payment_reference: reference || null,
+        payment_note: note || null,
+      });
+      setShowPay(false);
+      onChanged();
+    } catch (err) {
+      setError(err.response?.data?.detail || "Could not mark as paid.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="border border-ink/10 rounded-card p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="font-semibold text-ink">{inv.hospital_name}</div>
+          <div className="text-sm text-ink/50">
+            {inv.period_start} → {inv.period_end} · {inv.case_count} patient{inv.case_count === 1 ? "" : "s"}
+          </div>
+        </div>
+        <div className="text-right">
+          <div className="font-display text-xl text-ink">₹{inv.total_amount.toLocaleString("en-IN")}</div>
+          <span
+            className={`text-xs font-semibold px-2 py-0.5 rounded-full capitalize ${
+              inv.status === "paid" ? "bg-green-100 text-green-700" : "bg-amber-50 text-amber-700"
+            }`}
+          >
+            {inv.status}
+          </span>
+        </div>
+      </div>
+
+      {inv.status === "paid" && (
+        <div className="text-xs text-ink/50 mt-2">
+          Paid {new Date(inv.paid_at).toLocaleDateString()}
+          {inv.payment_reference ? ` · ref: ${inv.payment_reference}` : ""}
+          {inv.payment_note ? ` · ${inv.payment_note}` : ""}
+        </div>
+      )}
+
+      <div className="flex gap-4 mt-3 items-center">
+        <button type="button" onClick={() => setShowCases((v) => !v)} className="text-xs font-semibold text-violet">
+          {showCases ? "Hide patients" : `Show ${inv.case_count} patient${inv.case_count === 1 ? "" : "s"}`}
+        </button>
+        {inv.status !== "paid" && (
+          <button type="button" onClick={() => setShowPay((v) => !v)} className="text-xs font-semibold text-violet ml-auto">
+            {showPay ? "Cancel" : "Mark as paid"}
+          </button>
+        )}
+      </div>
+
+      {showCases && (
+        <div className="mt-3 border-t border-ink/10 pt-3 space-y-1.5">
+          {inv.cases.map((c) => (
+            <div key={c.case_id} className="text-sm flex flex-wrap gap-2 justify-between">
+              <span className="text-ink/80">{c.patient_name}</span>
+              <span className="text-ink/50">
+                {c.days_covered} day{c.days_covered === 1 ? "" : "s"} · ₹{c.amount.toLocaleString("en-IN")}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {showPay && (
+        <form onSubmit={markPaid} className="mt-3 border-t border-ink/10 pt-3 flex flex-wrap gap-2 items-end">
+          <input
+            placeholder="Payment reference (UTR/cheque no.)"
+            value={reference}
+            onChange={(e) => setReference(e.target.value)}
+            className="text-sm border border-ink/15 rounded-lg px-3 py-2 flex-1 min-w-[180px]"
+          />
+          <input
+            placeholder="Note (optional)"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            className="text-sm border border-ink/15 rounded-lg px-3 py-2 flex-1 min-w-[180px]"
+          />
+          <button disabled={busy} className="text-sm font-semibold px-4 py-2 rounded-full bg-violet text-white disabled:opacity-60">
+            {busy ? "Saving…" : "Confirm paid"}
+          </button>
+        </form>
+      )}
+
       {error && <p className="text-sm text-clay mt-2">{error}</p>}
     </div>
   );
