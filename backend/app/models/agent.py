@@ -53,11 +53,31 @@ class Agent(Base):
 
     monthly_base_pay = Column(Float, default=6000.0)
     hourly_rate = Column(Float, default=100.0)
+    # What ROSKYRO pays THIS officer per day of Hospital Concierge Program
+    # coverage — deliberately separate from hourly_rate, which prices the
+    # on-demand booking marketplace (per-hour work with a clock-in/clock-out
+    # trail). Hospital coverage is billed to the hospital per calendar day
+    # (see PatientCase.daily_rate / coverage_days_and_billing), with no hourly
+    # clock for the officer's side, so a day-rate is the honest unit here —
+    # NULL until ROSKYRO sets one, so payout estimates don't silently assume
+    # a number nobody agreed to.
+    hospital_daily_rate = Column(Float, nullable=True)
     rating_avg = Column(Float, default=5.0)
     total_jobs = Column(Integer, default=0)
     uniform_size = Column(String, nullable=True)
 
     is_available = Column(Boolean, default=True)
+
+    # --- The officer's own no-login "my day" link ---
+    # Mirrors PatientCase.officer_discharge_token (long random link stands in
+    # for a login this build doesn't have), but scoped to the officer rather
+    # than one case: it shows everything this officer currently covers across
+    # every hospital, not just one patient's discharge. Rotating it (see
+    # app/services/officer_roster.issue_portal_token) mints a fresh token and
+    # kills the old one, same as the discharge link.
+    portal_token = Column(String, unique=True, nullable=True, index=True)
+    portal_token_expires_at = Column(DateTime, nullable=True)
+
     created_at = Column(DateTime, default=datetime.utcnow)
 
     bookings = relationship("Booking", back_populates="agent")

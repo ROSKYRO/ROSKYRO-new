@@ -74,18 +74,42 @@ class PatientCase(Base):
     # confirm the discharge date & time before the case is actually closed.
     # `discharged_at` (below) is only ever set once BOTH of these are —
     # it's the source of truth for when billing/coverage actually stopped.
+    # NOTE: when NO officer was ever assigned to this case (assigned_agent_id
+    # is NULL, so no officer link was ever issued and nobody exists to confirm
+    # the officer side), the hospital's confirmation alone closes the case —
+    # otherwise it would sit in pending_discharge forever, still billing, with
+    # no possible way out. See services/patient_billing.py.
     hospital_discharge_at = Column(DateTime, nullable=True)   # hospital's confirmed discharge date/time
     officer_discharge_at = Column(DateTime, nullable=True)    # officer's confirmed discharge date/time
+    # Which Hospital Console user actually clicked confirm — same accountability
+    # pattern as DailyOfficerAssignment.assigned_by_id ("who made this call").
+    hospital_discharge_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     # Long random no-login link (mirrors Booking.officer_token) so the
     # assigned officer — who has no Console/User login in this build — can
     # open a one-purpose page and confirm the discharge date/time themselves.
     officer_discharge_token = Column(String, unique=True, nullable=True, index=True)
+    # The link is not valid forever: it stops working after this moment, and
+    # Admin can regenerate it (which mints a new token and instantly kills the
+    # old one) if it ever ends up in the wrong hands or the officer changes.
+    # NULL on legacy rows issued before expiry existed — treated as still
+    # valid, but flagged on the ops board so they can be rotated.
+    officer_discharge_token_expires_at = Column(DateTime, nullable=True)
+
+    # --- Admin override (the escape hatch when one side never responds) ---
+    # If the officer loses their phone, quits, or simply never confirms, an
+    # admin can force the case closed. We record who did it and why, so a
+    # force-closed case is never mistaken for a clean dual confirmation.
+    discharge_force_closed_at = Column(DateTime, nullable=True)
+    discharge_force_closed_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    discharge_force_close_reason = Column(Text, nullable=True)
 
     created_at = Column(DateTime, default=datetime.utcnow)
-    discharged_at = Column(DateTime, nullable=True)  # set only once both sides above have confirmed
+    discharged_at = Column(DateTime, nullable=True)  # set only once both required sides above have confirmed
 
     hospital = relationship("Hospital", back_populates="patients")
-    created_by = relationship("User")
+    created_by = relationship("User", foreign_keys=[created_by_id])
+    hospital_discharge_by = relationship("User", foreign_keys=[hospital_discharge_by_id])
+    discharge_force_closed_by = relationship("User", foreign_keys=[discharge_force_closed_by_id])
     assigned_agent = relationship("Agent", foreign_keys=[assigned_agent_id])
     assignments = relationship(
         "DailyOfficerAssignment", back_populates="patient_case",

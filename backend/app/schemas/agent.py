@@ -21,6 +21,7 @@ class AgentOut(BaseModel):
     is_fully_verified: bool
     hourly_rate: float
     monthly_base_pay: float
+    hospital_daily_rate: Optional[float] = None
     rating_avg: float
     total_jobs: int
     is_available: bool
@@ -55,3 +56,17 @@ class PartnerStatusIn(BaseModel):
     """Quick active/inactive toggle, separate from the full verification
     checklist. 'active' = accepting bookings, 'suspended' = inactive."""
     status: AgentStatus
+
+
+class PartnerUpdateIn(BaseModel):
+    """General edit for an existing partner — rates and the is_available
+    flag, which previously had no way to be set back to True (or set at all,
+    beyond the automatic False on suspend) except by hand in the database.
+    All fields optional; only what's sent gets changed."""
+    full_name: Optional[str] = None
+    email: Optional[str] = None
+    city_id: Optional[int] = None
+    hourly_rate: Optional[float] = None
+    monthly_base_pay: Optional[float] = None
+    hospital_daily_rate: Optional[float] = None
+    is_available: Optional[bool] = None

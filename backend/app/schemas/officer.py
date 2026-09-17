@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime, date
 
 from app.models.booking import BookingStatus
@@ -56,6 +56,8 @@ class OfficerPatientCaseOut(BaseModel):
     status: PatientCaseStatus
     hospital_discharge_at: Optional[datetime] = None  # set once the hospital has confirmed their side
     officer_discharge_at: Optional[datetime] = None   # set once this officer has confirmed their side
+    waiting_on: Optional[str] = None                  # "hospital" | "officer" | None
+    link_expires_at: Optional[datetime] = None        # when this link stops working
 
 
 class OfficerDischargeIn(BaseModel):
@@ -67,3 +69,30 @@ class OfficerDischargeIn(BaseModel):
 class OfficerDischargeOut(BaseModel):
     status: PatientCaseStatus
     message: str
+
+
+# ---------------------------------------------------------------------------
+# The officer's own no-login "my day" portal — everything this officer is
+# covering right now, across every hospital, in one place. Previously an
+# officer had no way to see this themselves; only a per-case discharge link.
+# ---------------------------------------------------------------------------
+
+class OfficerPortalCaseOut(BaseModel):
+    """One case this officer is currently on. Deliberately as light as the
+    other officer-facing schemas — no billing, no attendant contact details
+    beyond what they'd need to find the right patient."""
+    patient_name: str
+    hospital_name: Optional[str] = None
+    ward_or_room: Optional[str] = None
+    admission_date: date
+    status: PatientCaseStatus
+    covering_today: bool
+    hospital_discharge_at: Optional[datetime] = None
+    officer_discharge_at: Optional[datetime] = None
+    discharge_link_token: Optional[str] = None  # this case's own discharge-confirmation link
+
+
+class OfficerPortalOut(BaseModel):
+    full_name: str
+    today_patient_count: int
+    cases: List[OfficerPortalCaseOut] = []
