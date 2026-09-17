@@ -1,0 +1,72 @@
+from pydantic import BaseModel
+from typing import Optional
+
+from app.models.agent import AgentStatus, AgentRank
+
+
+class AgentApplyIn(BaseModel):
+    full_name: str
+    phone: str
+    email: Optional[str] = None
+    city_id: Optional[int] = None
+
+
+class AgentOut(BaseModel):
+    id: int
+    full_name: str
+    phone: str
+    status: AgentStatus
+    rank: AgentRank
+    verification_progress: int
+    is_fully_verified: bool
+    hourly_rate: float
+    monthly_base_pay: float
+    hospital_daily_rate: Optional[float] = None
+    rating_avg: float
+    total_jobs: int
+    is_available: bool
+
+    class Config:
+        from_attributes = True
+
+
+class AgentVerificationUpdateIn(BaseModel):
+    id_verified: Optional[bool] = None
+    police_verified: Optional[bool] = None
+    references_checked: Optional[bool] = None
+    interview_passed: Optional[bool] = None
+    training_completed: Optional[bool] = None
+    id_card_issued: Optional[bool] = None
+    status: Optional[AgentStatus] = None
+
+
+class PartnerCreateIn(BaseModel):
+    """Admin adding a partner (care-agent) directly, bypassing the public
+    apply flow — e.g. onboarding someone who was recruited offline."""
+    full_name: str
+    phone: str
+    email: Optional[str] = None
+    city_id: Optional[int] = None
+    hourly_rate: float = 100.0
+    monthly_base_pay: float = 6000.0
+    status: AgentStatus = AgentStatus.applied
+
+
+class PartnerStatusIn(BaseModel):
+    """Quick active/inactive toggle, separate from the full verification
+    checklist. 'active' = accepting bookings, 'suspended' = inactive."""
+    status: AgentStatus
+
+
+class PartnerUpdateIn(BaseModel):
+    """General edit for an existing partner — rates and the is_available
+    flag, which previously had no way to be set back to True (or set at all,
+    beyond the automatic False on suspend) except by hand in the database.
+    All fields optional; only what's sent gets changed."""
+    full_name: Optional[str] = None
+    email: Optional[str] = None
+    city_id: Optional[int] = None
+    hourly_rate: Optional[float] = None
+    monthly_base_pay: Optional[float] = None
+    hospital_daily_rate: Optional[float] = None
+    is_available: Optional[bool] = None
