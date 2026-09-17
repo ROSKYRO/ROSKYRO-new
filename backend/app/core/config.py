@@ -88,34 +88,6 @@ class Settings(BaseSettings):
     FIRST_HOUR_FREE_SLOTS: int = 50  # launch-offer style promo, configurable per city
     SUPPORT_EMAIL: str = "support@roskyro.in"
 
-    # ---- Hospital patient-case / dual discharge confirmation rules ----
-    # How far in the future a confirmed discharge date/time may be. This is a
-    # confirmation of something that already happened, so the only slack here
-    # is for clock skew between the phone/browser and the server.
-    DISCHARGE_FUTURE_TOLERANCE_MINUTES: int = 15
-    # How far apart the hospital's and the officer's confirmed discharge
-    # date/times may be before we stop accepting the second one silently.
-    # Beyond this, the two sides genuinely disagree about what happened and a
-    # human (ROSKYRO Admin, via force-close) has to decide.
-    DISCHARGE_MAX_CONFIRMATION_GAP_HOURS: int = 72
-    # How long an officer's no-login discharge link stays usable after it is
-    # issued/refreshed. A leaked link stops working after this.
-    OFFICER_DISCHARGE_LINK_TTL_DAYS: int = 30
-    # A case sitting half-confirmed for longer than this shows up as an alert
-    # on the ops board (warning), then escalates (critical).
-    DISCHARGE_PENDING_ALERT_HOURS: int = 24
-    DISCHARGE_PENDING_ESCALATE_HOURS: int = 72
-
-    # How many patients one Relationship Officer can be covering on the same
-    # calendar day before the ops board refuses the assignment (a human can
-    # consciously override this — see AssignOfficerIn.force — but it never
-    # slides past silently). A hospital-program-specific cap, separate from
-    # anything in the on-demand booking marketplace.
-    MAX_DAILY_PATIENTS_PER_OFFICER: int = 4
-    # Same idea as OFFICER_DISCHARGE_LINK_TTL_DAYS, but for the officer's
-    # standing "my day" portal link rather than a single case's link.
-    OFFICER_PORTAL_TOKEN_TTL_DAYS: int = 30
-
     class Config:
         env_file = ".env"
 

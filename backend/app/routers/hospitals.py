@@ -16,15 +16,9 @@ from app.models.patient_case import PatientCase, PatientCaseStatus, DailyOfficer
 from app.schemas.auth import LoginIn, TokenOut
 from app.schemas.hospital import (
     PublicHospitalOut, PatientCaseCreateIn, PatientCaseStatusIn, PatientCaseOut,
-    DailyAssignmentOut, HospitalDashboardOut, HospitalDischargeIn, CaseAlertOut,
+    DailyAssignmentOut, HospitalDashboardOut, HospitalDischargeIn,
 )
-from app.models.patient_case import DailyAssignmentStatus
-from app.services.patient_billing import (
-    coverage_days_and_billing, apply_hospital_discharge_confirmation,
-    undo_hospital_discharge_confirmation, officer_on_duty, build_case_alerts,
-    requires_officer_confirmation, discharge_waiting_on, discharge_pending_since,
-    DischargeValidationError,
-)
+from app.services.patient_billing import coverage_days_and_billing, apply_hospital_discharge_confirmation
 
 # Public router: hospital picker shown to families during booking.
 public_router = APIRouter(prefix="/hospitals", tags=["hospitals"])
@@ -71,9 +65,8 @@ def hospital_login(request: Request, payload: LoginIn, db: Session = Depends(get
 
 
 def _to_case_out(c: PatientCase) -> PatientCaseOut:
-    """The Hospital Console's view of a case. Deliberately narrower than
-    Admin's: no officer discharge link, no force-close audit trail."""
-    on_duty = officer_on_duty(c)
+    today = datetime.utcnow().date()
+    today_assignment = next((a for a in c.assignments if a.date == today), None)
     days_covered, billed_estimate = coverage_days_and_billing(c)
     return PatientCaseOut(
         id=c.id,
@@ -91,48 +84,31 @@ def _to_case_out(c: PatientCase) -> PatientCaseOut:
         daily_rate=c.daily_rate,
         days_covered=days_covered,
         billed_estimate=billed_estimate,
-        # Falls back to the case's standing officer on any day with no daily
-        # row, so the console stops saying "Awaiting today's officer" for a
-        # patient who has had the same officer since admission.
-        today_officer_name=on_duty.name,
-        today_officer_is_fallback=on_duty.is_fallback,
-        no_show_days=sum(1 for a in c.assignments if a.status == DailyAssignmentStatus.no_show),
+        today_officer_name=today_assignment.agent.full_name if today_assignment and today_assignment.agent else None,
         assigned_agent_id=c.assigned_agent_id,
         assigned_agent_name=c.assigned_agent.full_name if c.assigned_agent else None,
         hospital_discharge_at=c.hospital_discharge_at,
         officer_discharge_at=c.officer_discharge_at,
-        hospital_discharge_by_name=c.hospital_discharge_by.full_name if c.hospital_discharge_by else None,
-        officer_confirmation_required=requires_officer_confirmation(c),
-        discharge_waiting_on=discharge_waiting_on(c),
-        discharge_pending_since=discharge_pending_since(c),
-        # officer_discharge_token / force-close audit deliberately omitted —
-        # the Hospital Console never sees the officer's own link, and the
-        # override trail is ROSKYRO-internal.
+        # officer_discharge_token deliberately omitted here — the Hospital
+        # Console never sees the assigned officer's own confirmation link.
         created_at=c.created_at,
         discharged_at=c.discharged_at,
         assignments=[
             DailyAssignmentOut(
                 id=a.id, date=a.date, agent_id=a.agent_id,
-                agent_name=a.agent.full_name if a.agent else "\u2014",
+                agent_name=a.agent.full_name if a.agent else "—",
                 agent_phone=a.agent.phone if a.agent else None,
                 status=a.status, note=a.note,
             )
             for a in c.assignments
         ],
-        alerts=[CaseAlertOut(code=a.code, severity=a.severity, message=a.message)
-                for a in build_case_alerts(c)],
     )
 
 
 def _hospital_cases_query(db: Session, hospital_id: int):
     return (
         db.query(PatientCase)
-        .options(
-            joinedload(PatientCase.assignments).joinedload(DailyOfficerAssignment.agent),
-            joinedload(PatientCase.hospital),
-            joinedload(PatientCase.assigned_agent),
-            joinedload(PatientCase.hospital_discharge_by),
-        )
+        .options(joinedload(PatientCase.assignments).joinedload(DailyOfficerAssignment.agent), joinedload(PatientCase.hospital))
         .filter(PatientCase.hospital_id == hospital_id)
     )
 
@@ -150,16 +126,8 @@ def dashboard(db: Session = Depends(get_db), staff: User = Depends(require_hospi
         PatientCase.status.in_([PatientCaseStatus.active, PatientCaseStatus.pending_discharge])
     ).all()
     active_patients = len(active_cases)
-    # Counted through officer_on_duty() rather than "is there a daily row for
-    # today", so a patient whose standing officer was assigned once at
-    # admission still counts as covered long after the seeded From-To range
-    # ran out. Previously this reported them as awaiting an officer forever.
-    today_assigned = sum(1 for c in active_cases if officer_on_duty(c, today).covered)
+    today_assigned = sum(1 for c in active_cases if any(a.date == today for a in c.assignments))
     today_unassigned = active_patients - today_assigned
-
-    pending = [c for c in active_cases if c.status == PatientCaseStatus.pending_discharge]
-    pending_on_officer = sum(1 for c in pending if discharge_waiting_on(c) == "officer")
-    pending_on_hospital = len(pending) - pending_on_officer
 
     discharged_this_month = (
         _hospital_cases_query(db, staff.hospital_id)
@@ -184,9 +152,6 @@ def dashboard(db: Session = Depends(get_db), staff: User = Depends(require_hospi
         today_unassigned=today_unassigned,
         discharged_this_month=discharged_this_month,
         estimated_billing_this_month=round(estimated_billing_this_month, 2),
-        pending_discharge_total=len(pending),
-        pending_on_hospital=pending_on_hospital,
-        pending_on_officer=pending_on_officer,
     )
 
 
@@ -297,53 +262,14 @@ def confirm_hospital_discharge(
     billing stops) once the assigned Relationship Officer has also
     confirmed their side via their own link; until then it moves to
     'pending_discharge' and keeps accruing coverage/billing like an active
-    case.
-
-    Two behaviours worth knowing:
-      - The date/time is validated (not before admission, not in the future,
-        not wildly apart from the officer's own confirmation if that already
-        landed) instead of being accepted silently.
-      - If ROSKYRO never assigned a Relationship Officer to this case, there
-        is nobody who can confirm the other side, so this confirmation alone
-        closes the case rather than parking it in pending_discharge forever."""
+    case."""
     case = db.query(PatientCase).filter(PatientCase.id == case_id, PatientCase.hospital_id == staff.hospital_id).first()
     if not case:
         raise HTTPException(status_code=404, detail="Patient case not found")
     if case.status not in (PatientCaseStatus.active, PatientCaseStatus.pending_discharge):
         raise HTTPException(status_code=400, detail="This case isn't in a state that can be discharged.")
 
-    try:
-        apply_hospital_discharge_confirmation(case, payload.discharge_datetime, staff_id=staff.id)
-    except DischargeValidationError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
-    db.commit()
-    db.refresh(case)
-    return _to_case_out(case)
-
-
-@router.delete("/patients/{case_id}/discharge", response_model=PatientCaseOut)
-def undo_hospital_discharge(
-    case_id: int,
-    db: Session = Depends(get_db),
-    staff: User = Depends(require_hospital_staff),
-):
-    """Take back a discharge confirmation clicked by mistake.
-
-    Until now the only option was to edit the time, which meant a misclick
-    left a permanent (and billing-stopping) confirmation on the record. This
-    clears the hospital's side entirely and puts the case back to active — or
-    back to pending_discharge if the officer has confirmed their side. Once
-    the case has fully closed, undo is an Admin decision, not a one-click
-    action here."""
-    case = db.query(PatientCase).filter(PatientCase.id == case_id, PatientCase.hospital_id == staff.hospital_id).first()
-    if not case:
-        raise HTTPException(status_code=404, detail="Patient case not found")
-    if not case.hospital_discharge_at:
-        raise HTTPException(status_code=400, detail="There's no confirmation from your side to undo.")
-    try:
-        undo_hospital_discharge_confirmation(case)
-    except DischargeValidationError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+    apply_hospital_discharge_confirmation(case, payload.discharge_datetime)
     db.commit()
     db.refresh(case)
     return _to_case_out(case)

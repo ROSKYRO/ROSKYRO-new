@@ -110,7 +110,16 @@ class PatientCaseCreateIn(BaseModel):
 
 
 class PatientCaseStatusIn(BaseModel):
+    """Hospital cancels a case. NOTE: discharge is no longer set through this
+    endpoint — see HospitalDischargeIn below, since it now needs the
+    assigned officer's confirmation too before the case actually closes."""
     status: PatientCaseStatus
+
+
+class HospitalDischargeIn(BaseModel):
+    """Hospital's side of the dual discharge confirmation. discharge_datetime
+    defaults to right now if omitted."""
+    discharge_datetime: Optional[datetime] = None
 
 
 class DailyAssignmentOut(BaseModel):
@@ -140,9 +149,21 @@ class PatientCaseOut(BaseModel):
     expected_discharge_date: Optional[date] = None
     status: PatientCaseStatus
     daily_rate: float
-    days_covered: int = 0          # count of assignment days (completed + assigned)
-    billed_estimate: float = 0.0   # days_covered * daily_rate
+    days_covered: int = 0          # calendar days admission→(today or confirmed discharge)
+    billed_estimate: float = 0.0   # days_covered * daily_rate — keeps running until actual discharge
     today_officer_name: Optional[str] = None  # who's covering this patient today, if assigned
+
+    # The one Relationship Officer assigned to this case at admission, and
+    # where the dual discharge confirmation currently stands.
+    assigned_agent_id: Optional[int] = None
+    assigned_agent_name: Optional[str] = None
+    hospital_discharge_at: Optional[datetime] = None
+    officer_discharge_at: Optional[datetime] = None
+    # Only populated for ROSKYRO Admin (never sent to the Hospital Console) —
+    # the no-login link Admin shares with the assigned officer so they can
+    # confirm the discharge date/time themselves.
+    officer_discharge_token: Optional[str] = None
+
     created_at: datetime
     discharged_at: Optional[datetime] = None
     assignments: List[DailyAssignmentOut] = []

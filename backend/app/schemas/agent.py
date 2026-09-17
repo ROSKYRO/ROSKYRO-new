@@ -50,17 +50,7 @@ class PartnerCreateIn(BaseModel):
     monthly_base_pay: float = 6000.0
     status: AgentStatus = AgentStatus.applied
 
-class PartnerUpdateIn(BaseModel):
-    """Admin editing an existing partner's details — all fields optional so
-    a request only needs to send what's actually changing."""
-    full_name: Optional[str] = None
-    phone: Optional[str] = None
-    email: Optional[str] = None
-    city_id: Optional[int] = None
-    hourly_rate: Optional[float] = None
-    monthly_base_pay: Optional[float] = None
-    status: Optional[AgentStatus] = None
-    is_available: Optional[bool] = None
+
 class PartnerStatusIn(BaseModel):
     """Quick active/inactive toggle, separate from the full verification
     checklist. 'active' = accepting bookings, 'suspended' = inactive."""

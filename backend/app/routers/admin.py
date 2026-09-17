@@ -43,7 +43,7 @@ from app.services.pricing import price_booking, waived_breakdown
 from app.schemas.auth import LoginIn, TokenOut
 from app.schemas.service import ServiceOut, ServiceCreateIn, ServiceUpdateIn
 from app.schemas.city import CityAdminOut, CityCreateIn, CityUpdateIn
-from app.schemas.agent import AgentOut, PartnerCreateIn, PartnerStatusIn, PartnerUpdateIn
+from app.schemas.agent import AgentOut, PartnerCreateIn, PartnerStatusIn
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -391,27 +391,6 @@ def admin_set_partner_status(agent_id: int, payload: PartnerStatusIn, db: Sessio
     agent.status = payload.status
     if payload.status == AgentStatus.suspended:
         agent.is_available = False
-    db.commit()
-    db.refresh(agent)
-    return agent
-
-
-@router.patch("/partners/{agent_id}", response_model=AgentOut)
-def admin_update_partner(agent_id: int, payload: PartnerUpdateIn, db: Session = Depends(get_db), _: User = Depends(require_admin)):
-    """Edit a partner's rates and availability.
-
-    is_available previously had no dedicated way to be set — it only ever
-    flipped to False automatically on suspend, so the field was pure
-    decoration everywhere it was displayed (the hospital-program assign
-    dropdown showed "(unavailable)" but never enforced it). This is the one
-    place it's actually written, and app/services/officer_roster.py is the
-    one place it's actually enforced (alongside real-time capacity, which is
-    a separate, computed signal — see the Officers tab)."""
-    agent = db.query(Agent).get(agent_id)
-    if not agent:
-        raise HTTPException(status_code=404, detail="Partner not found")
-    for field, value in payload.model_dump(exclude_unset=True).items():
-        setattr(agent, field, value)
     db.commit()
     db.refresh(agent)
     return agent
