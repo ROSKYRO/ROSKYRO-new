@@ -3,7 +3,7 @@ import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
 import BottomNav from "./components/BottomNav";
 import { BookingModalProvider, useBookingModal } from "./context/BookingModalContext";
-import { RequireAuth, RequireAdmin } from "./components/ProtectedRoute";
+import { RequireAuth, RequireAdmin, RequireHospitalStaff } from "./components/ProtectedRoute";
 import { ADMIN_LOGIN_PATH } from "./config";
 
 import Home from "./pages/Home";
@@ -24,6 +24,9 @@ import PriorityAccess from "./pages/PriorityAccess";
 import PriorityAccessProfile from "./pages/PriorityAccessProfile";
 import PriorityAccessApply from "./pages/PriorityAccessApply";
 import OfficerCapture from "./pages/OfficerCapture";
+import HospitalLogin from "./pages/HospitalLogin";
+import HospitalDashboard from "./pages/HospitalDashboard";
+import AdminHospitalProgram from "./pages/AdminHospitalProgram";
 
 function AppLayout() {
   const { openQuickBook } = useBookingModal();
@@ -51,6 +54,9 @@ function AppLayout() {
           <Route path={ADMIN_LOGIN_PATH} element={<AdminLogin />} />
           <Route path="/admin" element={<RequireAdmin><AdminDashboard /></RequireAdmin>} />
           <Route path="/officer/:token" element={<OfficerCapture />} />
+          <Route path="/hospital/login" element={<HospitalLogin />} />
+          <Route path="/hospital/dashboard" element={<RequireHospitalStaff><HospitalDashboard /></RequireHospitalStaff>} />
+          <Route path="/admin/hospitals" element={<RequireAdmin><AdminHospitalProgram /></RequireAdmin>} />
         </Routes>
       </main>
       <Footer />

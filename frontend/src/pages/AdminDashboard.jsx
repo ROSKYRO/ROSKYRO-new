@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import api from "../api/client";
 import { useAuth } from "../context/AuthContext";
 
@@ -296,6 +297,12 @@ export default function AdminDashboard() {
             {t === "bookings" ? "All bookings" : t === "priority-access" ? "Priority Access" : t === "membership" ? "Memberships" : t}
           </button>
         ))}
+        <Link
+          to="/admin/hospitals"
+          className="pb-3 text-sm font-semibold border-b-2 -mb-px whitespace-nowrap border-transparent text-ink/50 hover:text-violet"
+        >
+          Hospitals
+        </Link>
       </div>
 
       {tab === "overview" && stats && (
