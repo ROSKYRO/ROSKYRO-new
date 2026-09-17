@@ -24,6 +24,8 @@ import PriorityAccess from "./pages/PriorityAccess";
 import PriorityAccessProfile from "./pages/PriorityAccessProfile";
 import PriorityAccessApply from "./pages/PriorityAccessApply";
 import OfficerCapture from "./pages/OfficerCapture";
+import OfficerDischarge from "./pages/OfficerDischarge";
+import OfficerPortal from "./pages/OfficerPortal";
 import HospitalLogin from "./pages/HospitalLogin";
 import HospitalDashboard from "./pages/HospitalDashboard";
 import AdminHospitalProgram from "./pages/AdminHospitalProgram";
@@ -53,6 +55,8 @@ function AppLayout() {
           <Route path="/priority-access/:id" element={<PriorityAccessProfile />} />
           <Route path={ADMIN_LOGIN_PATH} element={<AdminLogin />} />
           <Route path="/admin" element={<RequireAdmin><AdminDashboard /></RequireAdmin>} />
+          <Route path="/officer/discharge/:token" element={<OfficerDischarge />} />
+          <Route path="/officer/portal/:token" element={<OfficerPortal />} />
           <Route path="/officer/:token" element={<OfficerCapture />} />
           <Route path="/hospital/login" element={<HospitalLogin />} />
           <Route path="/hospital/dashboard" element={<RequireHospitalStaff><HospitalDashboard /></RequireHospitalStaff>} />
