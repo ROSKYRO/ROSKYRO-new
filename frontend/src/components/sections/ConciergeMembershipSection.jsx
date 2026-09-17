@@ -94,6 +94,7 @@ const COVERED = [
   "Hospital admission & discharge paperwork coordination",
   "Diagnostic & lab sample home collection coordination",
   "Medicine delivery facilitation & reminders",
+  "Second opinion consultation coordination",
   "Real-time family WhatsApp status briefings",
 ];
 
