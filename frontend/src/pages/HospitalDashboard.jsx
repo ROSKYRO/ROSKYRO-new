@@ -50,13 +50,6 @@ export default function HospitalDashboard() {
     loadCases("active");
   }
 
-  // Full withdrawal of a mis-clicked confirmation — not just editing the time.
-  async function undoDischarge(id) {
-    await api.delete(`/hospital-console/patients/${id}/discharge`);
-    loadDashboard();
-    loadCases("active");
-  }
-
   async function onCreated() {
     setTab("active");
     loadDashboard();
@@ -83,15 +76,6 @@ export default function HospitalDashboard() {
             label="Awaiting today's officer"
             value={dashboard.today_unassigned}
             highlight={dashboard.today_unassigned > 0}
-          />
-          <Stat
-            label="Discharges awaiting you"
-            value={dashboard.pending_on_hospital}
-            highlight={dashboard.pending_on_hospital > 0}
-          />
-          <Stat
-            label="Awaiting the officer"
-            value={dashboard.pending_on_officer}
           />
           <Stat label="Discharged this month" value={dashboard.discharged_this_month} />
           <Stat label="Est. billing this month" value={`₹${dashboard.estimated_billing_this_month.toLocaleString("en-IN")}`} />
@@ -130,7 +114,6 @@ export default function HospitalDashboard() {
               expanded={expandedId === c.id}
               onToggle={() => setExpandedId(expandedId === c.id ? null : c.id)}
               onDischarge={tab === "active" ? (dt) => dischargeCase(c.id, dt) : null}
-              onUndoDischarge={tab === "active" ? () => undoDischarge(c.id) : null}
             />
           ))}
         </div>
@@ -139,7 +122,7 @@ export default function HospitalDashboard() {
   );
 }
 
-function PatientCard({ c, expanded, onToggle, onDischarge, onUndoDischarge }) {
+function PatientCard({ c, expanded, onToggle, onDischarge }) {
   const [showDischargeForm, setShowDischargeForm] = useState(false);
   const [datetime, setDatetime] = useState(() => {
     const d = new Date();
@@ -147,33 +130,13 @@ function PatientCard({ c, expanded, onToggle, onDischarge, onUndoDischarge }) {
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
   });
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState("");
 
   async function submitDischarge(e) {
     e.preventDefault();
     setSubmitting(true);
-    setError("");
     try {
       await onDischarge(datetime);
       setShowDischargeForm(false);
-    } catch (err) {
-      // The server now validates the date/time (not before admission, not in
-      // the future, not wildly apart from the officer's own confirmation) —
-      // show that message instead of silently swallowing it.
-      setError(err.response?.data?.detail || "Could not confirm this discharge.");
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  async function undo() {
-    setSubmitting(true);
-    setError("");
-    try {
-      await onUndoDischarge();
-      setShowDischargeForm(false);
-    } catch (err) {
-      setError(err.response?.data?.detail || "Could not undo this confirmation.");
     } finally {
       setSubmitting(false);
     }
@@ -181,7 +144,7 @@ function PatientCard({ c, expanded, onToggle, onDischarge, onUndoDischarge }) {
 
   const isPendingDischarge = c.status === "pending_discharge";
   const waitingOn = isPendingDischarge
-    ? (c.discharge_waiting_on === "officer" ? "the Relationship Officer" : "you")
+    ? (c.hospital_discharge_at && !c.officer_discharge_at ? "the Relationship Officer" : "you")
     : null;
 
   return (
@@ -217,42 +180,16 @@ function PatientCard({ c, expanded, onToggle, onDischarge, onUndoDischarge }) {
         </div>
       </div>
 
-      {c.alerts?.length > 0 && (
-        <div className="space-y-1.5 mt-3">
-          {c.alerts.map((a) => (
-            <div
-              key={a.code}
-              className={`text-xs px-3 py-2 rounded-lg border font-medium ${
-                a.severity === "critical"
-                  ? "bg-rose-50 border-rose-200 text-rose-700"
-                  : a.severity === "warning"
-                  ? "bg-amber-50 border-amber-200 text-amber-700"
-                  : "bg-slate-50 border-ink/10 text-ink/60"
-              }`}
-            >
-              {a.message}
-            </div>
-          ))}
-        </div>
-      )}
-
-      <div className="flex gap-3 mt-3 flex-wrap">
+      <div className="flex gap-3 mt-3">
         <button onClick={onToggle} className="text-xs font-semibold text-violet">
           {expanded ? "Hide assignment history" : "View assignment history"}
         </button>
-        {onUndoDischarge && c.hospital_discharge_at && (
-          <button onClick={undo} disabled={submitting} className="text-xs font-semibold text-ink/50 disabled:opacity-50">
-            Undo my confirmation
-          </button>
-        )}
         {onDischarge && !showDischargeForm && (
           <button onClick={() => setShowDischargeForm(true)} className="text-xs font-semibold text-clay ml-auto">
             {isPendingDischarge ? "Update discharge time" : "Mark discharged"}
           </button>
         )}
       </div>
-
-      {error && <p className="text-xs text-clay mt-2">{error}</p>}
 
       {onDischarge && showDischargeForm && (
         <form onSubmit={submitDischarge} className="mt-3 border-t border-ink/10 pt-3 flex flex-wrap items-end gap-2">
@@ -273,28 +210,20 @@ function PatientCard({ c, expanded, onToggle, onDischarge, onUndoDischarge }) {
             Cancel
           </button>
           <p className="w-full text-[11px] text-ink/40">
-            {c.officer_confirmation_required
-              ? "The assigned Relationship Officer also confirms their own discharge date & time — the case only closes and billing stops once both confirmations are in."
-              : "No Relationship Officer is assigned to this patient, so your confirmation alone closes this case and stops billing."}
-            {" "}Clicked it by mistake? You can undo your confirmation until the case closes.
+            The assigned Relationship Officer also confirms their own discharge date & time — the case only closes
+            and billing stops once both confirmations are in.
           </p>
         </form>
       )}
 
       {expanded && (
         <div className="mt-3 border-t border-ink/10 pt-3 space-y-1.5">
-          {c.assignments.length === 0 && (
-            <p className="text-xs text-ink/40">
-              {c.assigned_agent_name
-                ? `${c.assigned_agent_name} covers this patient every day — no day-by-day rows logged.`
-                : "No officer assigned yet."}
-            </p>
-          )}
+          {c.assignments.length === 0 && <p className="text-xs text-ink/40">No officer assigned yet.</p>}
           {c.assignments.map((a) => (
             <div key={a.id} className="text-sm flex flex-wrap gap-2 items-baseline">
               <span className="font-semibold text-ink">{a.date}</span>
               <span className="text-ink/70">{a.agent_name}</span>
-              <span className={`text-xs ${a.status === "no_show" ? "text-clay font-semibold" : "text-ink/40"}`}>{STATUS_LABEL[a.status] || a.status}</span>
+              <span className="text-xs text-ink/40">{STATUS_LABEL[a.status] || a.status}</span>
               {a.note && <span className="text-xs text-ink/40 ml-auto">{a.note}</span>}
             </div>
           ))}

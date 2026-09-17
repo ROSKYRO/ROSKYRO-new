@@ -10,7 +10,7 @@ const STATUS_COPY = {
   },
   pending_discharge: {
     title: "Confirm Discharge",
-    body: "Enter the date & time the patient was actually discharged.",
+    body: "The hospital hasn't confirmed their side yet, or is waiting on you. Enter the date & time the patient was actually discharged.",
   },
   discharged: {
     title: "Discharge Confirmed",
@@ -94,29 +94,6 @@ export default function OfficerDischarge() {
 
   const stage = STATUS_COPY[patientCase.status] || {};
   const canConfirm = ["active", "pending_discharge"].includes(patientCase.status);
-  // Say plainly which side is being waited on, rather than making the officer
-  // work it out from two timestamps.
-  const waitingCopy =
-    patientCase.status !== "pending_discharge"
-      ? null
-      : patientCase.waiting_on === "officer"
-      ? "The hospital has confirmed. This case is waiting on you — billing keeps running until you confirm."
-      : "Your confirmation is saved. Waiting on the hospital to confirm their side before this case closes.";
-
-  async function undo() {
-    setSubmitting(true);
-    setError("");
-    setMessage("");
-    try {
-      const { data } = await api.delete(`/officer/discharge/${token}`);
-      setMessage(data.message);
-      await load();
-    } catch (err) {
-      setError(err.response?.data?.detail || "Could not withdraw your confirmation.");
-    } finally {
-      setSubmitting(false);
-    }
-  }
 
   return (
     <div className="max-w-md mx-auto px-4 py-8 space-y-5">
@@ -152,11 +129,6 @@ export default function OfficerDischarge() {
       <div className="bg-slate-50 border border-ink/10 rounded-2xl p-5 text-center space-y-3">
         <h2 className="font-display text-lg font-bold text-ink">{stage.title}</h2>
         <p className="text-xs text-ink/60 leading-relaxed">{stage.body}</p>
-        {waitingCopy && (
-          <p className="text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-            {waitingCopy}
-          </p>
-        )}
 
         {canConfirm && (
           <form onSubmit={confirm} className="space-y-3 text-left">
@@ -175,22 +147,8 @@ export default function OfficerDischarge() {
               disabled={submitting}
               className="w-full px-5 py-3.5 rounded-full bg-brand-gradient text-white text-sm font-bold shadow-md shadow-violet/20 hover:opacity-95 disabled:opacity-60"
             >
-              {submitting ? "Confirming…" : patientCase.officer_discharge_at ? "Update my confirmation" : "Confirm Discharge"}
+              {submitting ? "Confirming…" : "Confirm Discharge"}
             </button>
-            {patientCase.officer_discharge_at && (
-              <button
-                type="button"
-                onClick={undo}
-                disabled={submitting}
-                className="w-full text-xs font-semibold text-ink/50 disabled:opacity-50"
-              >
-                Withdraw my confirmation
-              </button>
-            )}
-            <p className="text-[10px] text-ink/40 text-center leading-relaxed">
-              Confirm the time the patient actually left — it can't be before admission or in the future.
-              {patientCase.link_expires_at && ` This link stops working on ${new Date(patientCase.link_expires_at).toLocaleDateString()}.`}
-            </p>
           </form>
         )}
 

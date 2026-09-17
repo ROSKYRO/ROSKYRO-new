@@ -14,7 +14,8 @@ import {
   ShieldCheck,
   ChevronRight,
   Globe,
-  Languages
+  Languages,
+  Building2
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { useLanguage } from "../context/LanguageContext";
@@ -38,6 +39,7 @@ export default function Navbar({ onOpenQuickBook }) {
     { to: "/my-bookings", label: t("nav_my_bookings"), icon: CalendarCheck },
     { to: "/member", label: t("nav_my_membership"), icon: Crown },
     ...(user?.role === "admin" ? [{ to: "/admin", label: t("nav_admin"), icon: ShieldCheck }] : []),
+    ...(user?.role === "hospital_staff" ? [{ to: "/hospital/dashboard", label: "Hospital Console", icon: Building2 }] : []),
   ];
 
   return (
@@ -216,13 +218,23 @@ export default function Navbar({ onOpenQuickBook }) {
               </button>
             </div>
           ) : (
-            <Link
-              to="/login"
-              className="hidden lg:inline-flex items-center gap-1 text-xs md:text-sm font-semibold text-ink/70 hover:text-violet px-3 py-1.5 rounded-full hover:bg-violet/5 transition-colors"
-            >
-              <User className="w-4 h-4" />
-              <span>{t("nav_login")}</span>
-            </Link>
+            <div className="hidden lg:flex items-center gap-1 pl-1">
+              <Link
+                to="/login"
+                className="inline-flex items-center gap-1 text-xs md:text-sm font-semibold text-ink/70 hover:text-violet px-3 py-1.5 rounded-full hover:bg-violet/5 transition-colors"
+              >
+                <User className="w-4 h-4" />
+                <span>{t("nav_login")}</span>
+              </Link>
+              <Link
+                to="/hospital/login"
+                className="inline-flex items-center gap-1 text-xs md:text-sm font-semibold text-ink/70 hover:text-violet px-3 py-1.5 rounded-full hover:bg-violet/5 transition-colors border border-ink/10"
+                title="Hospital partner login"
+              >
+                <Building2 className="w-4 h-4" />
+                <span>Hospital Login</span>
+              </Link>
+            </div>
           )}
 
           {/* Mobile Menu Toggle */}
@@ -357,13 +369,24 @@ export default function Navbar({ onOpenQuickBook }) {
                 {t("nav_logout")}
               </button>
             ) : (
-              <Link
-                to="/login"
-                onClick={() => setOpen(false)}
-                className="text-center text-xs font-semibold text-ink/70 hover:text-violet py-2"
-              >
-                {t("nav_login")} →
-              </Link>
+              <div className="flex items-center justify-center gap-4 py-2">
+                <Link
+                  to="/login"
+                  onClick={() => setOpen(false)}
+                  className="text-center text-xs font-semibold text-ink/70 hover:text-violet"
+                >
+                  {t("nav_login")} →
+                </Link>
+                <span className="text-ink/20">|</span>
+                <Link
+                  to="/hospital/login"
+                  onClick={() => setOpen(false)}
+                  className="flex items-center gap-1.5 text-center text-xs font-semibold text-ink/70 hover:text-violet"
+                >
+                  <Building2 className="w-3.5 h-3.5" />
+                  Hospital Login →
+                </Link>
+              </div>
             )}
           </div>
         </div>
